@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-code-card.schema.json",
+  "title": "WeChatLoom code-card component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "language",
+    "code"
+  ],
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "Source code",
+      "minLength": 1
+    },
+    "language": {
+      "type": "string",
+      "description": "Programming language label",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "description": "Code example title",
+      "minLength": 1
+    }
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/theme-package.schema.json",
+  "title": "WeChatLoom data-only theme package",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "theme"],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "family", "version", "description", "tokens"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+        "family": { "enum": ["minimal", "editorial", "tech", "business", "culture", "lifestyle", "custom"] },
+        "version": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "tokens": { "$ref": "#/$defs/tokens" }
+      }
+    }
+  },
+  "$defs": {
+    "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["colors", "typography", "spacing", "shape", "code", "caption"],
+      "properties": {
+        "colors": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["background", "surface", "text", "heading", "muted", "accent", "accent_soft", "border", "code_background", "code_text"],
+          "properties": {
+            "background": { "$ref": "#/$defs/color" },
+            "surface": { "$ref": "#/$defs/color" },
+            "text": { "$ref": "#/$defs/color" },
+            "heading": { "$ref": "#/$defs/color" },
+            "muted": { "$ref": "#/$defs/color" },
+            "accent": { "$ref": "#/$defs/color" },
+            "accent_soft": { "$ref": "#/$defs/color" },
+            "border": { "$ref": "#/$defs/color" },
+            "code_background": { "$ref": "#/$defs/color" },
+            "code_text": { "$ref": "#/$defs/color" }
+          }
+        },
+        "typography": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["font_family", "heading_font_family", "base_size", "line_height", "h1_size", "h2_size", "h3_size"],
+          "properties": {
+            "font_family": { "type": "string", "minLength": 1 },
+            "heading_font_family": { "type": "string", "minLength": 1 },
+            "base_size": { "type": "integer", "minimum": 12, "maximum": 24 },
+            "line_height": { "type": "number", "minimum": 1.4, "maximum": 2.4 },
+            "h1_size": { "type": "integer", "minimum": 1 },
+            "h2_size": { "type": "integer", "minimum": 1 },
+            "h3_size": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "spacing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["compact", "paragraph", "component", "section"],
+          "properties": {
+            "compact": { "type": "integer", "minimum": 1 },
+            "paragraph": { "type": "integer", "minimum": 1 },
+            "component": { "type": "integer", "minimum": 1 },
+            "section": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "shape": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["border_width", "radius", "image_radius", "shadow"],
+          "properties": {
+            "border_width": { "type": "integer", "minimum": 0 },
+            "radius": { "type": "integer", "minimum": 0 },
+            "image_radius": { "type": "integer", "minimum": 0 },
+            "shadow": { "type": "string" }
+          }
+        },
+        "code": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["font_family", "font_size", "line_height"],
+          "properties": {
+            "font_family": { "type": "string", "minLength": 1 },
+            "font_size": { "type": "integer", "minimum": 1 },
+            "line_height": { "type": "number", "minimum": 1 }
+          }
+        },
+        "caption": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["color", "font_size", "line_height"],
+          "properties": {
+            "color": { "$ref": "#/$defs/color" },
+            "font_size": { "type": "integer", "minimum": 1 },
+            "line_height": { "type": "number", "minimum": 1 }
+          }
+        }
+      }
+    }
+  }
+}

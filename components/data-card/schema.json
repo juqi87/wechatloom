@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-data-card.schema.json",
+  "title": "WeChatLoom data-card component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "rows"
+  ],
+  "properties": {
+    "rows": {
+      "type": "array",
+      "description": "Label and value rows",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "value"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Row label",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string",
+            "description": "Row value",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "title": {
+      "type": "string",
+      "description": "Data-card title",
+      "minLength": 1
+    }
+  }
+}

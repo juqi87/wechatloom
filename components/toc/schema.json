@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-toc.schema.json",
+  "title": "WeChatLoom toc component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "items"
+  ],
+  "properties": {
+    "items": {
+      "type": "array",
+      "description": "Section titles in reading order",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "title": {
+      "type": "string",
+      "description": "Table-of-contents heading",
+      "minLength": 1
+    }
+  }
+}

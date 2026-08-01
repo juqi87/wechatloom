@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-section.schema.json",
+  "title": "WeChatLoom section component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title"
+  ],
+  "properties": {
+    "kicker": {
+      "type": "string",
+      "description": "Short section label",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "description": "Section title",
+      "minLength": 1
+    }
+  }
+}

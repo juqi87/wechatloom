@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/project.schema.json",
+  "title": "WeChatLoom project configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project", "build"],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["theme", "output_dir"],
+      "properties": {
+        "theme": {
+          "type": "string",
+          "minLength": 1
+        },
+        "output_dir": {
+          "const": ".wechatloom/builds"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-gallery.schema.json",
+  "title": "WeChatLoom gallery component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "images"
+  ],
+  "properties": {
+    "images": {
+      "type": "array",
+      "description": "Captioned images",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "src",
+          "alt"
+        ],
+        "properties": {
+          "alt": {
+            "type": "string",
+            "description": "Accessible image description",
+            "minLength": 1
+          },
+          "caption": {
+            "type": "string",
+            "description": "Visible image caption",
+            "minLength": 1
+          },
+          "src": {
+            "type": "string",
+            "description": "Local or resolved image path",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "title": {
+      "type": "string",
+      "description": "Gallery heading",
+      "minLength": 1
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schema_version": "1",
+  "theme": {
+    "name": "lifestyle-lavender",
+    "family": "lifestyle",
+    "version": "0.2.0",
+    "description": "Lavender softness for reflective stories",
+    "tokens": {
+      "colors": {
+        "background": "#FBF8FF",
+        "surface": "#FAF5FF",
+        "text": "#1F2937",
+        "heading": "#111827",
+        "muted": "#6B7280",
+        "accent": "#7E22CE",
+        "accent_soft": "#F3E8FF",
+        "border": "#E9D5FF",
+        "code_background": "#0F172A",
+        "code_text": "#E2E8F0"
+      },
+      "typography": {
+        "font_family": "-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif",
+        "heading_font_family": "-apple-system,BlinkMacSystemFont,\"Segoe UI\",\"PingFang SC\",\"Microsoft YaHei\",sans-serif",
+        "base_size": 16,
+        "line_height": 1.8,
+        "h1_size": 30,
+        "h2_size": 24,
+        "h3_size": 19
+      },
+      "spacing": {
+        "compact": 8,
+        "paragraph": 16,
+        "component": 24,
+        "section": 40
+      },
+      "shape": {
+        "border_width": 1,
+        "radius": 8,
+        "image_radius": 8,
+        "shadow": "0 6px 24px rgba(15,23,42,0.08)"
+      },
+      "code": {
+        "font_family": "\"SFMono-Regular\",Consolas,\"Liberation Mono\",monospace",
+        "font_size": 14,
+        "line_height": 1.65
+      },
+      "caption": {
+        "color": "#6B7280",
+        "font_size": 13,
+        "line_height": 1.6
+      }
+    }
+  }
+}

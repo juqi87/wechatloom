@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-subscribe.schema.json",
+  "title": "WeChatLoom subscribe component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "text"
+  ],
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Subscription explanation",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "description": "Subscription heading",
+      "minLength": 1
+    }
+  }
+}

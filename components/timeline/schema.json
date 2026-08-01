@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-timeline.schema.json",
+  "title": "WeChatLoom timeline component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "items"
+  ],
+  "properties": {
+    "items": {
+      "type": "array",
+      "description": "Chronological entries",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "time",
+          "title"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Event detail",
+            "minLength": 1
+          },
+          "time": {
+            "type": "string",
+            "description": "Date or phase label",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "description": "Event title",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "title": {
+      "type": "string",
+      "description": "Timeline heading",
+      "minLength": 1
+    }
+  }
+}

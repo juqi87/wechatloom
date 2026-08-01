@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-divider.schema.json",
+  "title": "WeChatLoom divider component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "label"
+  ],
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "Optional-looking but accessible divider label",
+      "minLength": 1
+    }
+  }
+}

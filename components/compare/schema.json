@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-compare.schema.json",
+  "title": "WeChatLoom compare component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "left_title",
+    "left_items",
+    "right_title",
+    "right_items"
+  ],
+  "properties": {
+    "left_items": {
+      "type": "array",
+      "description": "Left-column points",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "left_title": {
+      "type": "string",
+      "description": "Left-column title",
+      "minLength": 1
+    },
+    "right_items": {
+      "type": "array",
+      "description": "Right-column points",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "right_title": {
+      "type": "string",
+      "description": "Right-column title",
+      "minLength": 1
+    }
+  }
+}

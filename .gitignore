@@ -1,0 +1,6 @@
+.DS_Store
+/bin/
+/dist/
+/graphify-out/
+/.wechatloom/builds/
+/.wechatloom/state/

@@ -1,0 +1,4 @@
+interface:
+  display_name: "WeChatLoom"
+  short_description: "编排 Markdown、主题与组件并生成公众号预览"
+  default_prompt: "Use $wechatloom to arrange, inspect, theme, build, and preview this Markdown article for WeChat Official Accounts."

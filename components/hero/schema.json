@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-hero.schema.json",
+  "title": "WeChatLoom hero component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "subtitle"
+  ],
+  "properties": {
+    "eyebrow": {
+      "type": "string",
+      "description": "Short category label",
+      "minLength": 1
+    },
+    "subtitle": {
+      "type": "string",
+      "description": "Supporting subtitle",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "description": "Primary article title",
+      "minLength": 1
+    }
+  }
+}

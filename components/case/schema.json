@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-case.schema.json",
+  "title": "WeChatLoom case component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "challenge",
+    "solution",
+    "result"
+  ],
+  "properties": {
+    "challenge": {
+      "type": "string",
+      "description": "Initial challenge",
+      "minLength": 1
+    },
+    "result": {
+      "type": "string",
+      "description": "Observed result",
+      "minLength": 1
+    },
+    "solution": {
+      "type": "string",
+      "description": "Applied solution",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "description": "Case-study title",
+      "minLength": 1
+    }
+  }
+}

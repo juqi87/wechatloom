@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-pros-cons.schema.json",
+  "title": "WeChatLoom pros-cons component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pros",
+    "cons"
+  ],
+  "properties": {
+    "cons": {
+      "type": "array",
+      "description": "Tradeoffs",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "pros": {
+      "type": "array",
+      "description": "Benefits",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "title": {
+      "type": "string",
+      "description": "Block heading",
+      "minLength": 1
+    }
+  }
+}

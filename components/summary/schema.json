@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-summary.schema.json",
+  "title": "WeChatLoom summary component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "text"
+  ],
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Summary text",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "description": "Summary heading",
+      "minLength": 1
+    }
+  }
+}

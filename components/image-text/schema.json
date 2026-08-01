@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-image-text.schema.json",
+  "title": "WeChatLoom image-text component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "image",
+    "alt",
+    "title",
+    "content"
+  ],
+  "properties": {
+    "alt": {
+      "type": "string",
+      "description": "Accessible image description",
+      "minLength": 1
+    },
+    "content": {
+      "type": "string",
+      "description": "Explanatory text",
+      "minLength": 1
+    },
+    "image": {
+      "type": "string",
+      "description": "Local or resolved image path",
+      "minLength": 1
+    },
+    "position": {
+      "type": "string",
+      "description": "Image placement",
+      "minLength": 1,
+      "enum": [
+        "top",
+        "left",
+        "right"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "description": "Text heading",
+      "minLength": 1
+    }
+  }
+}

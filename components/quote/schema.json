@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-quote.schema.json",
+  "title": "WeChatLoom quote component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "text",
+    "attribution"
+  ],
+  "properties": {
+    "attribution": {
+      "type": "string",
+      "description": "Person or source",
+      "minLength": 1
+    },
+    "text": {
+      "type": "string",
+      "description": "Quotation text",
+      "minLength": 1
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-cta.schema.json",
+  "title": "WeChatLoom cta component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "text",
+    "button_label",
+    "url"
+  ],
+  "properties": {
+    "button_label": {
+      "type": "string",
+      "description": "Action-link label",
+      "minLength": 1
+    },
+    "text": {
+      "type": "string",
+      "description": "Action explanation",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "description": "Action heading",
+      "minLength": 1
+    },
+    "url": {
+      "type": "string",
+      "description": "HTTPS action URL",
+      "minLength": 1
+    }
+  }
+}

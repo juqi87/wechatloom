@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/components/wx-author.schema.json",
+  "title": "WeChatLoom author component",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "bio"
+  ],
+  "properties": {
+    "avatar": {
+      "type": "string",
+      "description": "Local or resolved avatar path",
+      "minLength": 1
+    },
+    "bio": {
+      "type": "string",
+      "description": "Short author biography",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "description": "Author name",
+      "minLength": 1
+    }
+  }
+}
