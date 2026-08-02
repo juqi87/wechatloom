@@ -4,16 +4,32 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wechatloom/wechatloom/internal/builder"
 	"github.com/wechatloom/wechatloom/internal/catalog"
 	"github.com/wechatloom/wechatloom/internal/workspace"
 )
+
+type fakeRemoteImageSource struct {
+	URL   string
+	Image builder.RemoteImage
+}
+
+func (source *fakeRemoteImageSource) Fetch(_ context.Context, rawURL string) (builder.RemoteImage, error) {
+	if rawURL != source.URL {
+		return builder.RemoteImage{}, fmt.Errorf("unexpected remote image URL %q", rawURL)
+	}
+	return source.Image, nil
+}
 
 func TestInspectReturnsPublishingMetadataWithoutChangingTheSource(t *testing.T) {
 	t.Parallel()
@@ -41,6 +57,147 @@ func TestInspectReturnsPublishingMetadataWithoutChangingTheSource(t *testing.T) 
 	}
 	if len(inspection.Errors) != 0 {
 		t.Errorf("Errors = %v, want none", inspection.Errors)
+	}
+}
+
+func TestInspectTreatsWindowsLineEndingsAsTheSameMarkdownDocument(t *testing.T) {
+	t.Parallel()
+
+	fixture, err := os.ReadFile(filepath.Join("..", "..", "testdata", "article.md"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	sourcePath := filepath.Join(t.TempDir(), "article.md")
+	windowsSource := strings.ReplaceAll(string(fixture), "\n", "\r\n")
+	if err := os.WriteFile(sourcePath, []byte(windowsSource), 0o644); err != nil {
+		t.Fatalf("write Windows fixture: %v", err)
+	}
+
+	inspection, err := builder.New().Inspect(context.Background(), builder.InspectRequest{
+		SourcePath: sourcePath,
+	})
+	if err != nil {
+		t.Fatalf("Inspect() error = %v", err)
+	}
+
+	if inspection.Title != "用 WeChatLoom 构建第一篇文章" || inspection.Author != "WeChatLoom" {
+		t.Errorf("metadata = title %q, author %q; want normalized frontmatter", inspection.Title, inspection.Author)
+	}
+	if inspection.SourceHash != "2ccd6edda3d986cd9d9604e61a5c544ff1d2489efe4f522e7c029e6e62bdd0a7" {
+		t.Errorf("SourceHash = %q, want the canonical Markdown hash", inspection.SourceHash)
+	}
+	if len(inspection.Errors) != 0 {
+		t.Errorf("Errors = %v, want none", inspection.Errors)
+	}
+}
+
+func TestBuildMaterializesRemoteImagesAsContentAddressedAssets(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	if _, err := workspace.NewLocal().Init(context.Background(), projectDir); err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	imageBytes, err := os.ReadFile(filepath.Join("..", "..", "testdata", "images", "a.png"))
+	if err != nil {
+		t.Fatalf("read image fixture: %v", err)
+	}
+	const remoteURL = "https://images.example.test/article"
+	sourcePath := filepath.Join(t.TempDir(), "remote.md")
+	if err := os.WriteFile(sourcePath, []byte("# Remote image\n\n![safe image]("+remoteURL+")\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	remoteImages := &fakeRemoteImageSource{
+		URL: remoteURL,
+		Image: builder.RemoteImage{
+			Content:   imageBytes,
+			MediaType: "image/png",
+		},
+	}
+
+	result, err := builder.NewWithRemoteImageSource(remoteImages).Build(context.Background(), builder.BuildRequest{
+		WorkspaceRoot: projectDir,
+		SourcePath:    sourcePath,
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	articleHTML, err := os.ReadFile(result.ArticleHTMLPath)
+	if err != nil {
+		t.Fatalf("read article HTML: %v", err)
+	}
+	if bytes.Contains(articleHTML, []byte(remoteURL)) || !bytes.Contains(articleHTML, []byte("assets/image-")) {
+		t.Errorf("article HTML did not materialize the remote image:\n%s", articleHTML)
+	}
+	assets, err := filepath.Glob(filepath.Join(result.BuildPath, "assets", "image-*.png"))
+	if err != nil {
+		t.Fatalf("glob image assets: %v", err)
+	}
+	if len(assets) != 1 {
+		t.Fatalf("remote image assets = %v, want one", assets)
+	}
+	materialized, err := os.ReadFile(assets[0])
+	if err != nil {
+		t.Fatalf("read materialized image: %v", err)
+	}
+	if !bytes.Equal(materialized, imageBytes) {
+		t.Error("materialized image differs from the downloaded content")
+	}
+}
+
+func TestBuildRejectsLoopbackRemoteImagesBeforeConnecting(t *testing.T) {
+	t.Parallel()
+
+	requests := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		requests <- struct{}{}
+		writer.Header().Set("Content-Type", "image/png")
+		_, _ = writer.Write([]byte("not reached"))
+	}))
+	defer server.Close()
+	projectDir := t.TempDir()
+	if _, err := workspace.NewLocal().Init(context.Background(), projectDir); err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	sourcePath := filepath.Join(t.TempDir(), "unsafe.md")
+	if err := os.WriteFile(sourcePath, []byte("# Unsafe image\n\n![unsafe]("+server.URL+"/image.png)\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+
+	_, err := builder.New().Build(context.Background(), builder.BuildRequest{
+		WorkspaceRoot: projectDir,
+		SourcePath:    sourcePath,
+	})
+	if err == nil || !strings.Contains(err.Error(), "REMOTE_IMAGE_SSRF") {
+		t.Fatalf("Build() error = %v, want SSRF rejection", err)
+	}
+	select {
+	case <-requests:
+		t.Error("the remote image server was contacted before SSRF rejection")
+	default:
+	}
+}
+
+func TestBuildRejectsCarrierGradeNATRemoteImages(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	if _, err := workspace.NewLocal().Init(context.Background(), projectDir); err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	sourcePath := filepath.Join(t.TempDir(), "unsafe-cgnat.md")
+	if err := os.WriteFile(sourcePath, []byte("# Unsafe image\n\n![unsafe](http://100.64.0.1/image.png)\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+
+	_, err := builder.New().Build(ctx, builder.BuildRequest{
+		WorkspaceRoot: projectDir,
+		SourcePath:    sourcePath,
+	})
+	if err == nil || !strings.Contains(err.Error(), "REMOTE_IMAGE_SSRF") {
+		t.Fatalf("Build() error = %v, want CGNAT SSRF rejection", err)
 	}
 }
 

@@ -2,7 +2,7 @@
 
 WeChatLoom is a local Go CLI plus a portable Codex Skill for turning Markdown into deterministic, mobile-first HTML for WeChat Official Accounts.
 
-The current `0.2.0-dev` release provides the complete local visual workflow: 24 original themes in six families, 24 schema-validated layout components, local image resolution, offline formula and safe Mermaid PNG rendering, an interactive preview, and fixed mobile screenshots. It does not connect to WeChat or create a draft.
+The current `0.3.0-dev` line includes the complete v0.2 local visual workflow and the first v0.3 media slice: remote Markdown images are materialized as content-addressed build assets with DNS/IP SSRF checks, redirect revalidation, MIME, size, pixel, and timeout limits. It does not connect to WeChat or create a draft yet.
 
 ## Quick start
 
@@ -96,7 +96,17 @@ Each atomic build contains `article.html`, `preview.html`, `layout-plan.json`, `
 
 ## Portable Codex Skill
 
-The Skill is in `skills/wechatloom/`. Copy that directory into the Codex skills directory after installing the CLI. It discovers runtime themes and components, recommends a restrained layout, keeps the source read-only by default, and reports that v0.2 cannot publish remotely.
+The Skill is bundled into the CLI and is also available in `skills/wechatloom/`. Check, install, or explicitly update it with:
+
+```bash
+wechatloom skill status codex --json
+wechatloom skill install codex --json
+wechatloom skill update codex --json
+```
+
+`status` is read-only. `install` and `update` write only after the explicit command, record the CLI source version and bundled file hashes, and use staging plus rollback directories for recoverable replacement. Set `CODEX_HOME` or pass `--codex-home <dir>` to target a non-default Codex home.
+
+The Skill discovers runtime themes and components, recommends a restrained layout, keeps the source read-only by default, and reports that the current v0.3 development CLI still cannot create a WeChat draft.
 
 ## Validation
 

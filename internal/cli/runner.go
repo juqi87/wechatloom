@@ -20,6 +20,7 @@ import (
 	"github.com/wechatloom/wechatloom/internal/catalog"
 	"github.com/wechatloom/wechatloom/internal/preview"
 	"github.com/wechatloom/wechatloom/internal/protocol"
+	"github.com/wechatloom/wechatloom/internal/skillmanager"
 	"github.com/wechatloom/wechatloom/internal/snapshot"
 	"github.com/wechatloom/wechatloom/internal/version"
 	"github.com/wechatloom/wechatloom/internal/workspace"
@@ -53,10 +54,12 @@ func (runner *Runner) Run(args []string) int {
 			return runner.preview(args[1:])
 		case "snapshot":
 			return runner.snapshot(args[1:])
+		case "skill":
+			return runner.skill(args[1:])
 		}
 	}
 
-	fmt.Fprintln(runner.stderr, "usage: wechatloom <init|inspect|build|preview|snapshot|theme|component|capabilities> [options]")
+	fmt.Fprintln(runner.stderr, "usage: wechatloom <init|inspect|build|preview|snapshot|theme|component|skill|capabilities> [options]")
 	return 2
 }
 
@@ -75,7 +78,7 @@ func (runner *Runner) capabilities(asJSON bool) int {
 		Components   []catalog.Component  `json:"components"`
 		RemoteWrites catalog.RemoteWrites `json:"remote_writes"`
 	}{
-		Commands:     []string{"init", "inspect", "build", "preview", "snapshot", "theme", "component", "capabilities"},
+		Commands:     []string{"init", "inspect", "build", "preview", "snapshot", "theme", "component", "skill", "capabilities"},
 		Themes:       resourceCapabilities.Themes,
 		Components:   resourceCapabilities.Components,
 		RemoteWrites: resourceCapabilities.RemoteWrites,
@@ -94,8 +97,92 @@ func (runner *Runner) capabilities(asJSON bool) int {
 		return 0
 	}
 
-	fmt.Fprintln(runner.stdout, "WeChatLoom commands: init, inspect, build, preview, snapshot, theme, component, capabilities")
+	fmt.Fprintln(runner.stdout, "WeChatLoom commands: init, inspect, build, preview, snapshot, theme, component, skill, capabilities")
 	return 0
+}
+
+func (runner *Runner) skill(args []string) int {
+	asJSON := slices.Contains(args, "--json")
+	filtered := make([]string, 0, len(args))
+	codexHome := ""
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--codex-home":
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, "--codex-home requires a directory")
+			}
+			codexHome = args[index]
+		default:
+			filtered = append(filtered, args[index])
+		}
+	}
+	if len(filtered) != 2 || (filtered[0] != "status" && filtered[0] != "install" && filtered[0] != "update") || filtered[1] != "codex" {
+		return runner.usageError(asJSON, "skill requires 'status codex', 'install codex', or 'update codex'")
+	}
+	resolvedHome, err := resolveCodexHome(codexHome)
+	if err != nil {
+		return runner.commandError(asJSON, "SKILL_STATUS_FAILED", "Resolve Codex home", err)
+	}
+	if filtered[0] == "install" {
+		result, err := skillmanager.InstallCodex(context.Background(), resolvedHome)
+		if err != nil {
+			return runner.commandError(asJSON, "SKILL_INSTALL_FAILED", "Install Codex skill", err)
+		}
+		if asJSON {
+			if err := protocol.WriteJSON(runner.stdout, protocol.OK("SKILL_INSTALLED", "Codex skill installed", "completed", result)); err != nil {
+				fmt.Fprintf(runner.stderr, "write JSON: %v\n", err)
+				return 1
+			}
+			return 0
+		}
+		fmt.Fprintf(runner.stdout, "Installed Codex skill %s at %s\n", result.InstalledVersion, result.Path)
+		return 0
+	}
+	if filtered[0] == "update" {
+		result, err := skillmanager.UpdateCodex(context.Background(), resolvedHome)
+		if err != nil {
+			return runner.commandError(asJSON, "SKILL_UPDATE_FAILED", "Update Codex skill", err)
+		}
+		if asJSON {
+			if err := protocol.WriteJSON(runner.stdout, protocol.OK("SKILL_UPDATED", "Codex skill updated", "completed", result)); err != nil {
+				fmt.Fprintf(runner.stderr, "write JSON: %v\n", err)
+				return 1
+			}
+			return 0
+		}
+		fmt.Fprintf(runner.stdout, "Updated Codex skill from %s to %s at %s\n", result.PreviousVersion, result.InstalledVersion, result.Path)
+		return 0
+	}
+	data, err := skillmanager.CodexStatus(resolvedHome)
+	if err != nil {
+		return runner.commandError(asJSON, "SKILL_STATUS_FAILED", "Read Codex skill status", err)
+	}
+	if asJSON {
+		if err := protocol.WriteJSON(runner.stdout, protocol.OK("SKILL_STATUS_READY", "Codex skill status is ready", "ready", data)); err != nil {
+			fmt.Fprintf(runner.stderr, "write JSON: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	fmt.Fprintf(runner.stdout, "Codex skill: %s (%s)\n", data.State, data.Path)
+	return 0
+}
+
+func resolveCodexHome(explicit string) (string, error) {
+	selected := strings.TrimSpace(explicit)
+	if selected == "" {
+		selected = strings.TrimSpace(os.Getenv("CODEX_HOME"))
+	}
+	if selected == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		selected = filepath.Join(home, ".codex")
+	}
+	return filepath.Abs(selected)
 }
 
 func (runner *Runner) preview(args []string) int {

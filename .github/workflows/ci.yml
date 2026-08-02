@@ -76,6 +76,8 @@ jobs:
             --output chrome.zip
           unzip -q chrome.zip
           echo "WECHATLOOM_BROWSER=$PWD/chrome-linux64/chrome" >> "$GITHUB_ENV"
+      - name: Allow the Chrome sandbox on the hosted runner
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Build component gallery and capture mobile viewports
         run: |
           go build -o wechatloom ./cmd/wechatloom

@@ -64,10 +64,25 @@ type BuildResult struct {
 	Warnings            []Diagnostic `json:"warnings"`
 }
 
-type Service struct{}
+type RemoteImage struct {
+	Content   []byte
+	MediaType string
+}
+
+type RemoteImageSource interface {
+	Fetch(context.Context, string) (RemoteImage, error)
+}
+
+type Service struct {
+	remoteImages RemoteImageSource
+}
 
 func New() Builder {
-	return &Service{}
+	return &Service{remoteImages: newSecureRemoteImageSource()}
+}
+
+func NewWithRemoteImageSource(source RemoteImageSource) Builder {
+	return &Service{remoteImages: source}
 }
 
 func (service *Service) Inspect(ctx context.Context, request InspectRequest) (Inspection, error) {
@@ -83,6 +98,7 @@ func (service *Service) Inspect(ctx context.Context, request InspectRequest) (In
 	if err != nil {
 		return Inspection{}, fmt.Errorf("read source: %w", err)
 	}
+	source = normalizeMarkdownSource(source)
 
 	sum := sha256.Sum256(source)
 	metadata, body, metadataError := parseFrontmatter(source)
@@ -136,6 +152,7 @@ func (service *Service) Build(ctx context.Context, request BuildRequest) (BuildR
 	if err != nil {
 		return BuildResult{}, fmt.Errorf("read source: %w", err)
 	}
+	source = normalizeMarkdownSource(source)
 	metadata, body, err := parseFrontmatter(source)
 	if err != nil {
 		return BuildResult{}, err
@@ -147,6 +164,11 @@ func (service *Service) Build(ctx context.Context, request BuildRequest) (BuildR
 		inspection.Theme = strings.TrimSpace(request.Theme)
 	}
 	originalComponentBlocks, _ := scanComponentBlocks(body)
+	remoteImages := resolveRemoteImages(ctx, body, service.remoteImages)
+	if len(remoteImages.Diagnostics) != 0 {
+		return BuildResult{}, fmt.Errorf("remote image resolution failed: %s", remoteImages.Diagnostics[0].Message)
+	}
+	body = remoteImages.Markdown
 	localImages := resolveLocalImages(body, filepath.Dir(inspection.SourcePath))
 	if len(localImages.Diagnostics) != 0 {
 		return BuildResult{}, fmt.Errorf("local image validation failed: %s", localImages.Diagnostics[0].Message)
@@ -157,7 +179,10 @@ func (service *Service) Build(ctx context.Context, request BuildRequest) (BuildR
 		return BuildResult{}, fmt.Errorf("rich media validation failed: %s", richMedia.Diagnostics[0].Message)
 	}
 	body = richMedia.Markdown
-	buildAssets := make(map[string][]byte, len(localImages.Assets)+len(richMedia.Assets))
+	buildAssets := make(map[string][]byte, len(remoteImages.Assets)+len(localImages.Assets)+len(richMedia.Assets))
+	for path, content := range remoteImages.Assets {
+		buildAssets[path] = content
+	}
 	for path, content := range localImages.Assets {
 		buildAssets[path] = content
 	}
@@ -347,6 +372,11 @@ func (service *Service) Build(ctx context.Context, request BuildRequest) (BuildR
 func hashBytes(content []byte) string {
 	sum := sha256.Sum256(content)
 	return fmt.Sprintf("%x", sum)
+}
+
+func normalizeMarkdownSource(source []byte) []byte {
+	source = bytes.ReplaceAll(source, []byte("\r\n"), []byte("\n"))
+	return bytes.ReplaceAll(source, []byte("\r"), []byte("\n"))
 }
 
 type frontmatter struct {

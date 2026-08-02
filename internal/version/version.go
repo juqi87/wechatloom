@@ -2,5 +2,5 @@ package version
 
 const (
 	Name    = "wechatloom"
-	Version = "0.2.0-dev"
+	Version = "0.3.0-dev"
 )

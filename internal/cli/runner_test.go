@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -90,6 +91,229 @@ func TestCapabilitiesJSONDescribesTheStableCLIContract(t *testing.T) {
 	}
 	if data.RemoteWrites.WeChatDraft == nil || *data.RemoteWrites.WeChatDraft {
 		t.Errorf("wechat_draft remote write = %v, want explicit false in v0.1", data.RemoteWrites.WeChatDraft)
+	}
+}
+
+func TestSkillStatusReportsAMissingCodexInstallationWithoutWriting(t *testing.T) {
+	t.Parallel()
+
+	codexHome := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	exitCode := cli.NewRunner(&stdout, &stderr).Run([]string{
+		"skill", "status", "codex", "--codex-home", codexHome, "--json",
+	})
+	if exitCode != 0 {
+		t.Fatalf("skill status exit code = %d; stderr = %q; stdout = %q", exitCode, stderr.String(), stdout.String())
+	}
+	var response struct {
+		Success bool   `json:"success"`
+		Code    string `json:"code"`
+		Status  string `json:"status"`
+		Data    struct {
+			Target        string `json:"target"`
+			State         string `json:"state"`
+			Installed     bool   `json:"installed"`
+			Path          string `json:"path"`
+			SourceVersion string `json:"source_version"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		t.Fatalf("decode skill status response: %v\n%s", err, stdout.String())
+	}
+	wantPath := filepath.Join(codexHome, "skills", "wechatloom")
+	if !response.Success || response.Code != "SKILL_STATUS_READY" || response.Status != "ready" {
+		t.Errorf("response = %+v, want ready skill status", response)
+	}
+	if response.Data.Target != "codex" || response.Data.State != "not_installed" || response.Data.Installed {
+		t.Errorf("skill state = %+v, want missing Codex installation", response.Data)
+	}
+	if response.Data.Path != wantPath || response.Data.SourceVersion != "0.3.0-dev" {
+		t.Errorf("skill metadata = %+v, want path %q and source version 0.3.0-dev", response.Data, wantPath)
+	}
+	if _, err := os.Stat(wantPath); !os.IsNotExist(err) {
+		t.Errorf("skill status wrote target path; stat error = %v", err)
+	}
+}
+
+func TestSkillInstallCreatesAPortableVersionedCodexSkill(t *testing.T) {
+	t.Parallel()
+
+	codexHome := t.TempDir()
+	var installOut, installErr bytes.Buffer
+	exitCode := cli.NewRunner(&installOut, &installErr).Run([]string{
+		"skill", "install", "codex", "--codex-home", codexHome, "--json",
+	})
+	if exitCode != 0 {
+		t.Fatalf("skill install exit code = %d; stderr = %q; stdout = %q", exitCode, installErr.String(), installOut.String())
+	}
+	var installed struct {
+		Success bool   `json:"success"`
+		Code    string `json:"code"`
+		Status  string `json:"status"`
+		Data    struct {
+			Path             string   `json:"path"`
+			InstalledVersion string   `json:"installed_version"`
+			Files            []string `json:"files"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(installOut.Bytes(), &installed); err != nil {
+		t.Fatalf("decode skill install response: %v\n%s", err, installOut.String())
+	}
+	targetPath := filepath.Join(codexHome, "skills", "wechatloom")
+	if !installed.Success || installed.Code != "SKILL_INSTALLED" || installed.Status != "completed" {
+		t.Errorf("install response = %+v, want completed installation", installed)
+	}
+	if installed.Data.Path != targetPath || installed.Data.InstalledVersion != "0.3.0-dev" {
+		t.Errorf("install data = %+v, want path %q and version 0.3.0-dev", installed.Data, targetPath)
+	}
+	for _, relativePath := range []string{"SKILL.md", filepath.Join("agents", "openai.yaml"), ".wechatloom-skill.json"} {
+		if info, err := os.Stat(filepath.Join(targetPath, relativePath)); err != nil || !info.Mode().IsRegular() {
+			t.Errorf("installed file %q: info=%v err=%v", relativePath, info, err)
+		}
+	}
+	manifestBytes, err := os.ReadFile(filepath.Join(targetPath, ".wechatloom-skill.json"))
+	if err != nil {
+		t.Fatalf("read skill manifest: %v", err)
+	}
+	var manifest struct {
+		SchemaVersion string            `json:"schema_version"`
+		Skill         string            `json:"skill"`
+		Target        string            `json:"target"`
+		SourceVersion string            `json:"source_version"`
+		Files         map[string]string `json:"files"`
+	}
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("decode skill manifest: %v", err)
+	}
+	if manifest.SchemaVersion != "1" || manifest.Skill != "wechatloom" || manifest.Target != "codex" || manifest.SourceVersion != "0.3.0-dev" {
+		t.Errorf("skill manifest = %+v, want versioned Codex source metadata", manifest)
+	}
+	if len(manifest.Files) != 2 || manifest.Files["SKILL.md"] == "" || manifest.Files["agents/openai.yaml"] == "" {
+		t.Errorf("skill manifest files = %+v, want hashes for both portable assets", manifest.Files)
+	}
+
+	var statusOut, statusErr bytes.Buffer
+	exitCode = cli.NewRunner(&statusOut, &statusErr).Run([]string{
+		"skill", "status", "codex", "--codex-home", codexHome, "--json",
+	})
+	if exitCode != 0 {
+		t.Fatalf("installed skill status exit code = %d; stderr = %q", exitCode, statusErr.String())
+	}
+	var status struct {
+		Data struct {
+			State            string `json:"state"`
+			Installed        bool   `json:"installed"`
+			InstalledVersion string `json:"installed_version"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(statusOut.Bytes(), &status); err != nil {
+		t.Fatalf("decode installed skill status: %v", err)
+	}
+	if status.Data.State != "installed" || !status.Data.Installed || status.Data.InstalledVersion != "0.3.0-dev" {
+		t.Errorf("installed skill status = %+v, want matching installed version", status.Data)
+	}
+}
+
+func TestSkillUpdateAtomicallyRestoresTheBundledCodexSkill(t *testing.T) {
+	t.Parallel()
+
+	codexHome := t.TempDir()
+	var installOut, installErr bytes.Buffer
+	if exitCode := cli.NewRunner(&installOut, &installErr).Run([]string{
+		"skill", "install", "codex", "--codex-home", codexHome, "--json",
+	}); exitCode != 0 {
+		t.Fatalf("skill install exit code = %d; stderr = %q", exitCode, installErr.String())
+	}
+	targetPath := filepath.Join(codexHome, "skills", "wechatloom")
+	skillPath := filepath.Join(targetPath, "SKILL.md")
+	bundledSkill, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read installed skill: %v", err)
+	}
+	if err := os.WriteFile(skillPath, []byte("locally modified\n"), 0o644); err != nil {
+		t.Fatalf("modify installed skill: %v", err)
+	}
+
+	var updateOut, updateErr bytes.Buffer
+	exitCode := cli.NewRunner(&updateOut, &updateErr).Run([]string{
+		"skill", "update", "codex", "--codex-home", codexHome, "--json",
+	})
+	if exitCode != 0 {
+		t.Fatalf("skill update exit code = %d; stderr = %q; stdout = %q", exitCode, updateErr.String(), updateOut.String())
+	}
+	var response struct {
+		Success bool   `json:"success"`
+		Code    string `json:"code"`
+		Status  string `json:"status"`
+		Data    struct {
+			PreviousVersion  string `json:"previous_version"`
+			InstalledVersion string `json:"installed_version"`
+			Path             string `json:"path"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(updateOut.Bytes(), &response); err != nil {
+		t.Fatalf("decode skill update response: %v\n%s", err, updateOut.String())
+	}
+	if !response.Success || response.Code != "SKILL_UPDATED" || response.Status != "completed" {
+		t.Errorf("update response = %+v, want completed update", response)
+	}
+	if response.Data.PreviousVersion != "0.3.0-dev" || response.Data.InstalledVersion != "0.3.0-dev" || response.Data.Path != targetPath {
+		t.Errorf("update data = %+v, want an in-place managed update", response.Data)
+	}
+	updatedSkill, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read updated skill: %v", err)
+	}
+	if !bytes.Equal(updatedSkill, bundledSkill) {
+		t.Error("skill update did not restore the bundled SKILL.md")
+	}
+	backups, err := filepath.Glob(filepath.Join(codexHome, "skills", ".wechatloom-backup-*"))
+	if err != nil {
+		t.Fatalf("glob skill backups: %v", err)
+	}
+	if len(backups) != 0 {
+		t.Errorf("skill update left rollback directories: %v", backups)
+	}
+}
+
+func TestSkillStatusDetectsLocallyModifiedManagedFiles(t *testing.T) {
+	t.Parallel()
+
+	codexHome := t.TempDir()
+	var installOut, installErr bytes.Buffer
+	if exitCode := cli.NewRunner(&installOut, &installErr).Run([]string{
+		"skill", "install", "codex", "--codex-home", codexHome, "--json",
+	}); exitCode != 0 {
+		t.Fatalf("skill install exit code = %d; stderr = %q", exitCode, installErr.String())
+	}
+	skillPath := filepath.Join(codexHome, "skills", "wechatloom", "SKILL.md")
+	if err := os.WriteFile(skillPath, []byte("locally modified\n"), 0o644); err != nil {
+		t.Fatalf("modify installed skill: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	exitCode := cli.NewRunner(&stdout, &stderr).Run([]string{
+		"skill", "status", "codex", "--codex-home", codexHome, "--json",
+	})
+	if exitCode != 0 {
+		t.Fatalf("skill status exit code = %d; stderr = %q", exitCode, stderr.String())
+	}
+	var response struct {
+		Data struct {
+			State            string   `json:"state"`
+			Installed        bool     `json:"installed"`
+			InstalledVersion string   `json:"installed_version"`
+			ModifiedFiles    []string `json:"modified_files"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		t.Fatalf("decode skill status: %v", err)
+	}
+	if response.Data.State != "modified" || !response.Data.Installed || response.Data.InstalledVersion != "0.3.0-dev" {
+		t.Errorf("skill status = %+v, want modified managed installation", response.Data)
+	}
+	if !reflect.DeepEqual(response.Data.ModifiedFiles, []string{"SKILL.md"}) {
+		t.Errorf("modified files = %v, want SKILL.md", response.Data.ModifiedFiles)
 	}
 }
 
