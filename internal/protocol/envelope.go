@@ -16,7 +16,7 @@ type Envelope struct {
 	Status        string   `json:"status"`
 	Retryable     bool     `json:"retryable"`
 	Warnings      []string `json:"warnings"`
-	Data          any      `json:"data,omitempty"`
+	Data          any      `json:"data"`
 }
 
 func OK(code, message, status string, data any) Envelope {

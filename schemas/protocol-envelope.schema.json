@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechatloom.dev/schemas/protocol-envelope.schema.json",
+  "title": "WeChatLoom CLI JSON Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "success",
+    "code",
+    "message",
+    "schema_version",
+    "status",
+    "retryable",
+    "warnings",
+    "data"
+  ],
+  "properties": {
+    "success": { "type": "boolean" },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$"
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": { "const": "1.0" },
+    "status": {
+      "enum": ["ready", "completed", "invalid", "failed"]
+    },
+    "retryable": { "type": "boolean" },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "data": true
+  }
+}

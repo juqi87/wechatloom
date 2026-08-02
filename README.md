@@ -94,6 +94,10 @@ Theme priority is CLI `--theme`, then article frontmatter, then project configur
 
 Each atomic build contains `article.html`, `preview.html`, `layout-plan.json`, `manifest.json`, diagnostics, derived Markdown, content-addressed assets, and a snapshots directory. The source Markdown remains unchanged. The manifest records hashes, tool and protocol versions, resolved theme tokens, component schema versions, rendering policy, and every artifact.
 
+## JSON protocol contract
+
+Every `--json` success, validation error, and command failure uses the same versioned envelope. The public Draft 2020-12 contract is committed at [`schemas/protocol-envelope.schema.json`](schemas/protocol-envelope.schema.json). Its eight fields are always present; `data` is JSON `null` when a response has no structured payload. This schema is the first frozen V1.0 stability boundary.
+
 ## Portable Codex Skill
 
 The Skill is bundled into the CLI and is also available in `skills/wechatloom/`. Check, install, or explicitly update it with:
