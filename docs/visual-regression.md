@@ -22,4 +22,4 @@ WECHATLOOM_VISUAL_REGRESSION=1 go test ./internal/snapshot -run TestComponentGal
 5. 只有视觉变化符合设计意图时，才显式替换 `testdata/visual/tech-cyan/`。
 6. 再次运行像素回归并在变更说明中记录原因。
 
-CI 使用固定 Chrome for Testing 150 生成 Linux smoke 截图并上传为 artifact。它用于跨平台检查，不自动覆盖 macOS golden。
+CI 使用固定 Chrome for Testing 150 的 `chrome-headless-shell` 生成 Linux smoke 截图并上传为 artifact。专用无头二进制避免完整版 Chrome 在无桌面 Runner 中启动 DBus、UPower 和后台注册服务；它用于跨平台检查，不自动覆盖 macOS golden。

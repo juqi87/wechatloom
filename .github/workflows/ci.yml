@@ -69,13 +69,13 @@ jobs:
         with:
           go-version: "1.24.x"
           cache: true
-      - name: Install pinned Chrome for Testing
+      - name: Install pinned Chrome Headless Shell for Testing
         run: |
           curl --fail --location --retry 3 \
-            "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chrome-linux64.zip" \
-            --output chrome.zip
-          unzip -q chrome.zip
-          echo "WECHATLOOM_BROWSER=$PWD/chrome-linux64/chrome" >> "$GITHUB_ENV"
+            "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chrome-headless-shell-linux64.zip" \
+            --output chrome-headless-shell.zip
+          unzip -q chrome-headless-shell.zip
+          echo "WECHATLOOM_BROWSER=$PWD/chrome-headless-shell-linux64/chrome-headless-shell" >> "$GITHUB_ENV"
       - name: Allow the Chrome sandbox on the hosted runner
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Build component gallery and capture mobile viewports
