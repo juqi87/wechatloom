@@ -28,14 +28,6 @@ func validateUserConfigPermissions(path string, _ os.FileInfo) error {
 	if err != nil {
 		return fmt.Errorf("USER_CONFIG_PERMISSIONS: inspect current Windows user: %w", err)
 	}
-	if owner == nil || tokenUser.User.Sid == nil || !owner.Equals(tokenUser.User.Sid) {
-		return errors.New("USER_CONFIG_PERMISSIONS: Windows config must be owned by the current user")
-	}
-
-	dacl, _, err := descriptor.DACL()
-	if err != nil || dacl == nil {
-		return errors.New("USER_CONFIG_PERMISSIONS: Windows config requires a private DACL")
-	}
 	localSystem, err := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
 	if err != nil {
 		return fmt.Errorf("USER_CONFIG_PERMISSIONS: resolve LocalSystem SID: %w", err)
@@ -45,6 +37,14 @@ func validateUserConfigPermissions(path string, _ os.FileInfo) error {
 		return fmt.Errorf("USER_CONFIG_PERMISSIONS: resolve Administrators SID: %w", err)
 	}
 	allowed := []*windows.SID{tokenUser.User.Sid, localSystem, administrators}
+	if !sidAllowed(owner, allowed) {
+		return errors.New("USER_CONFIG_PERMISSIONS: Windows config must be owned by the current user, SYSTEM, or Administrators")
+	}
+
+	dacl, _, err := descriptor.DACL()
+	if err != nil || dacl == nil {
+		return errors.New("USER_CONFIG_PERMISSIONS: Windows config requires a private DACL")
+	}
 	for index := uint32(0); index < uint32(dacl.AceCount); index++ {
 		var ace *windows.ACCESS_ALLOWED_ACE
 		if err := windows.GetAce(dacl, index, &ace); err != nil {

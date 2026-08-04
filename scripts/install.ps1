@@ -23,7 +23,17 @@ try {
   Invoke-WebRequest "$baseUrl/$asset" -OutFile $binary
   Invoke-WebRequest "$baseUrl/SHA256SUMS" -OutFile $checksums
   $expected = (Get-Content $checksums | Where-Object { $_ -match "\s+$([regex]::Escape($asset))$" } | Select-Object -First 1).Split()[0].ToLowerInvariant()
-  $actual = (Get-FileHash -Algorithm SHA256 $binary).Hash.ToLowerInvariant()
+  $stream = [System.IO.File]::OpenRead($binary)
+  try {
+    $hasher = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $actual = -join ($hasher.ComputeHash($stream) | ForEach-Object { $_.ToString("x2") })
+    } finally {
+      $hasher.Dispose()
+    }
+  } finally {
+    $stream.Dispose()
+  }
   if (-not $expected -or $expected -ne $actual) { throw "checksum verification failed; nothing was installed" }
   New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
   Move-Item -Force $binary (Join-Path $InstallDir "wechatloom.exe")
