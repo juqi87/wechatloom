@@ -56,7 +56,7 @@ Parse stdout only as the JSON envelope. Treat stderr as diagnostics, never as pr
 ## Safety gates
 
 - Never claim that an article was published or saved to WeChat unless the installed CLI reports a confirmed remote result.
-- The current `0.3.x` implementation supports WeChat draft writes only through the persisted dry-run plan and short-lived confirmation token described above.
+- WeChatLoom `1.0.0` supports WeChat draft writes only through the persisted dry-run plan and short-lived confirmation token described above.
 - Never infer remote consent from consent to inspect, build, render, or preview.
 - Run `account verify [account] --config <user-config> --json` only when the user explicitly asks to verify an account or to diagnose its readiness. It may contact the official WeChat token endpoint, but must never expose the AppSecret, complete AppID, or access token.
 - Require explicit confirmation immediately before every command that writes remotely; never reuse confirmation from an earlier conversation turn after the plan expires or content changes.

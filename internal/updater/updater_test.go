@@ -22,13 +22,13 @@ func (function roundTripFunc) RoundTrip(request *http.Request) (*http.Response, 
 func TestVerifiedGitHubReleaseCanBeCheckedAndAtomicallyInstalled(t *testing.T) {
 	binary := []byte("verified-wechatloom-binary")
 	sum := sha256.Sum256(binary)
-	manifestURL := "https://github.com/wechatloom/wechatloom/releases/download/v0.4.0/update-manifest.json"
-	assetURL := "https://github.com/wechatloom/wechatloom/releases/download/v0.4.0/wechatloom"
+	manifestURL := "https://github.com/juqi87/wechatloom/releases/download/v0.4.0/update-manifest.json"
+	assetURL := "https://github.com/juqi87/wechatloom/releases/download/v0.4.0/wechatloom"
 	client := &Client{httpClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		var body string
 		switch request.URL.String() {
 		case manifestURL:
-			body = fmt.Sprintf(`{"schema_version":"1","version":"0.4.0","page_url":"https://github.com/wechatloom/wechatloom/releases/tag/v0.4.0","assets":[{"os":%q,"arch":%q,"url":%q,"sha256":%q}]}`, runtime.GOOS, runtime.GOARCH, assetURL, fmt.Sprintf("%x", sum))
+			body = fmt.Sprintf(`{"schema_version":"1","version":"0.4.0","page_url":"https://github.com/juqi87/wechatloom/releases/tag/v0.4.0","assets":[{"os":%q,"arch":%q,"url":%q,"sha256":%q}]}`, runtime.GOOS, runtime.GOARCH, assetURL, fmt.Sprintf("%x", sum))
 		case assetURL:
 			body = string(binary)
 		default:
@@ -71,7 +71,7 @@ func TestInstallRejectsAConstructedNonReleaseAsset(t *testing.T) {
 
 func TestRedirectsStayAnchoredToTheOfficialReleaseAndApprovedCDN(t *testing.T) {
 	client := New()
-	root, err := http.NewRequest(http.MethodGet, "https://github.com/wechatloom/wechatloom/releases/latest/download/update-manifest.json", nil)
+	root, err := http.NewRequest(http.MethodGet, "https://github.com/juqi87/wechatloom/releases/latest/download/update-manifest.json", nil)
 	if err != nil {
 		t.Fatalf("create root request: %v", err)
 	}

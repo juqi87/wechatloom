@@ -82,8 +82,8 @@ func TestCapabilitiesJSONDescribesTheStableCLIContract(t *testing.T) {
 	if !contains(data.Commands, "draft") {
 		t.Errorf("commands = %v, want draft capability", data.Commands)
 	}
-	if data.Tool.Name != "wechatloom" || data.Tool.Version == "" {
-		t.Errorf("tool = %+v, want a named CLI version", data.Tool)
+	if data.Tool.Name != "wechatloom" || data.Tool.Version != "1.0.0" {
+		t.Errorf("tool = %+v, want WeChatLoom 1.0.0", data.Tool)
 	}
 	if len(data.Themes) != 24 || !hasNamedTheme(data.Themes, "minimal") || !hasNamedTheme(data.Themes, "tech-cyan") {
 		t.Errorf("themes = %+v, want 24 built-in themes including minimal and tech-cyan", data.Themes)
@@ -259,8 +259,8 @@ func TestSkillStatusReportsAMissingCodexInstallationWithoutWriting(t *testing.T)
 	if response.Data.Target != "codex" || response.Data.State != "not_installed" || response.Data.Installed {
 		t.Errorf("skill state = %+v, want missing Codex installation", response.Data)
 	}
-	if response.Data.Path != wantPath || response.Data.SourceVersion != "0.3.0-dev" {
-		t.Errorf("skill metadata = %+v, want path %q and source version 0.3.0-dev", response.Data, wantPath)
+	if response.Data.Path != wantPath || response.Data.SourceVersion != "1.0.0" {
+		t.Errorf("skill metadata = %+v, want path %q and source version 1.0.0", response.Data, wantPath)
 	}
 	if _, err := os.Stat(wantPath); !os.IsNotExist(err) {
 		t.Errorf("skill status wrote target path; stat error = %v", err)
@@ -295,8 +295,8 @@ func TestSkillInstallCreatesAPortableVersionedCodexSkill(t *testing.T) {
 	if !installed.Success || installed.Code != "SKILL_INSTALLED" || installed.Status != "completed" {
 		t.Errorf("install response = %+v, want completed installation", installed)
 	}
-	if installed.Data.Path != targetPath || installed.Data.InstalledVersion != "0.3.0-dev" {
-		t.Errorf("install data = %+v, want path %q and version 0.3.0-dev", installed.Data, targetPath)
+	if installed.Data.Path != targetPath || installed.Data.InstalledVersion != "1.0.0" {
+		t.Errorf("install data = %+v, want path %q and version 1.0.0", installed.Data, targetPath)
 	}
 	for _, relativePath := range []string{"SKILL.md", filepath.Join("agents", "openai.yaml"), ".wechatloom-skill.json"} {
 		if info, err := os.Stat(filepath.Join(targetPath, relativePath)); err != nil || !info.Mode().IsRegular() {
@@ -317,8 +317,8 @@ func TestSkillInstallCreatesAPortableVersionedCodexSkill(t *testing.T) {
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
 		t.Fatalf("decode skill manifest: %v", err)
 	}
-	if manifest.SchemaVersion != "1" || manifest.Skill != "wechatloom" || manifest.Target != "codex" || manifest.SourceVersion != "0.3.0-dev" {
-		t.Errorf("skill manifest = %+v, want versioned Codex source metadata", manifest)
+	if manifest.SchemaVersion != "1" || manifest.Skill != "wechatloom" || manifest.Target != "codex" || manifest.SourceVersion != "1.0.0" {
+		t.Errorf("skill manifest = %+v, want 1.0.0 Codex source metadata", manifest)
 	}
 	if len(manifest.Files) != 2 || manifest.Files["SKILL.md"] == "" || manifest.Files["agents/openai.yaml"] == "" {
 		t.Errorf("skill manifest files = %+v, want hashes for both portable assets", manifest.Files)
@@ -341,7 +341,7 @@ func TestSkillInstallCreatesAPortableVersionedCodexSkill(t *testing.T) {
 	if err := json.Unmarshal(statusOut.Bytes(), &status); err != nil {
 		t.Fatalf("decode installed skill status: %v", err)
 	}
-	if status.Data.State != "installed" || !status.Data.Installed || status.Data.InstalledVersion != "0.3.0-dev" {
+	if status.Data.State != "installed" || !status.Data.Installed || status.Data.InstalledVersion != "1.0.0" {
 		t.Errorf("installed skill status = %+v, want matching installed version", status.Data)
 	}
 }
@@ -389,7 +389,7 @@ func TestSkillUpdateAtomicallyRestoresTheBundledCodexSkill(t *testing.T) {
 	if !response.Success || response.Code != "SKILL_UPDATED" || response.Status != "completed" {
 		t.Errorf("update response = %+v, want completed update", response)
 	}
-	if response.Data.PreviousVersion != "0.3.0-dev" || response.Data.InstalledVersion != "0.3.0-dev" || response.Data.Path != targetPath {
+	if response.Data.PreviousVersion != "1.0.0" || response.Data.InstalledVersion != "1.0.0" || response.Data.Path != targetPath {
 		t.Errorf("update data = %+v, want an in-place managed update", response.Data)
 	}
 	updatedSkill, err := os.ReadFile(skillPath)
@@ -441,7 +441,7 @@ func TestSkillStatusDetectsLocallyModifiedManagedFiles(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
 		t.Fatalf("decode skill status: %v", err)
 	}
-	if response.Data.State != "modified" || !response.Data.Installed || response.Data.InstalledVersion != "0.3.0-dev" {
+	if response.Data.State != "modified" || !response.Data.Installed || response.Data.InstalledVersion != "1.0.0" {
 		t.Errorf("skill status = %+v, want modified managed installation", response.Data)
 	}
 	if !reflect.DeepEqual(response.Data.ModifiedFiles, []string{"SKILL.md"}) {

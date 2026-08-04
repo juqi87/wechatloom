@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-repo="${WECHATLOOM_REPOSITORY:-wechatloom/wechatloom}"
+repo="juqi87/wechatloom"
 version="${WECHATLOOM_VERSION:-latest}"
 install_dir="${WECHATLOOM_INSTALL_DIR:-${HOME}/.local/bin}"
 

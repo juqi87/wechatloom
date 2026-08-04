@@ -36,6 +36,17 @@ checksum:
   name_template: SHA256SUMS
   algorithm: sha256
 
+signs:
+  - id: checksum-keyless
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - --yes
+    artifacts: checksum
+
 sboms:
   - artifacts: binary
 

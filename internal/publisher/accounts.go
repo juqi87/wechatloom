@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -127,8 +126,8 @@ func loadUserConfig(path string) (userConfig, error) {
 	if !info.Mode().IsRegular() {
 		return userConfig{}, errors.New("USER_CONFIG_INVALID: user config must be a regular file")
 	}
-	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return userConfig{}, fmt.Errorf("USER_CONFIG_PERMISSIONS: %s must use permissions 0600", path)
+	if err := validateUserConfigPermissions(path, info); err != nil {
+		return userConfig{}, err
 	}
 	file, err := os.Open(path)
 	if err != nil {

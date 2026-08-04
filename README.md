@@ -2,7 +2,7 @@
 
 WeChatLoom is a local Go CLI plus a portable Codex Skill for turning Markdown into deterministic, mobile-first HTML for WeChat Official Accounts.
 
-The current `0.3.0-dev` line includes the complete v0.2 local visual workflow and the v0.3 draft pipeline: safe remote image materialization, named-account verification, private token and media caches, explicit draft dry-runs, expiring confirmation tokens, draft add/update, duplicate prevention, and recoverable `outcome_unknown` state.
+WeChatLoom `1.0.0` includes the complete local visual workflow and draft pipeline: safe remote image materialization, named-account verification, private token and media caches, explicit draft dry-runs, expiring confirmation tokens, draft add/update, duplicate prevention, and recoverable `outcome_unknown` state.
 
 ## Quick start
 
@@ -113,7 +113,7 @@ Theme priority is CLI `--theme`, then article frontmatter, then project configur
 
 ### Account verification and confirmed drafts
 
-Store credentials only in a user-level file outside the project, restrict it to the current user, and select the file explicitly when needed:
+Store credentials only in a user-level file outside the project, restrict it to the current user, and select the file explicitly when needed. On Windows, WeChatLoom also permits the operating system's privileged `SYSTEM` and built-in `Administrators` principals while rejecting read access for other users or groups:
 
 ```yaml
 schema_version: "1"
@@ -188,7 +188,7 @@ WECHATLOOM_VISUAL_REGRESSION=1 go test ./internal/snapshot -run TestComponentGal
 
 The checked-in visual baselines cover the complete component gallery at all three mobile widths. CI also captures a smoke artifact with pinned Chrome for Testing 150.
 
-See the [v0.2 release notes](docs/releases/v0.2.md), [product requirements](docs/product/wechatloom-prd.md), [architecture](docs/architecture/wechatloom-architecture.md), [implementation roadmap](docs/roadmap/wechatloom-implementation-roadmap.md), and [visual regression guide](docs/visual-regression.md).
+See the [v1.0.0 release notes](docs/releases/v1.0.0.md), [v1.0.0 acceptance record](docs/releases/v1.0.0-acceptance.md), [v0.2 release notes](docs/releases/v0.2.md), [product requirements](docs/product/wechatloom-prd.md), [architecture](docs/architecture/wechatloom-architecture.md), [implementation roadmap](docs/roadmap/wechatloom-implementation-roadmap.md), and [visual regression guide](docs/visual-regression.md).
 
 WeChatLoom is independent and is not affiliated with, endorsed by, or sponsored by Tencent or WeChat.
 

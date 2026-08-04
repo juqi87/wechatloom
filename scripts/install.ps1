@@ -1,10 +1,10 @@
 param(
   [string]$Version = $env:WECHATLOOM_VERSION,
-  [string]$InstallDir = $env:WECHATLOOM_INSTALL_DIR,
-  [string]$Repository = "wechatloom/wechatloom"
+  [string]$InstallDir = $env:WECHATLOOM_INSTALL_DIR
 )
 
 $ErrorActionPreference = "Stop"
+$Repository = "juqi87/wechatloom"
 if (-not $Version) {
   $release = Invoke-RestMethod "https://api.github.com/repos/$Repository/releases/latest"
   $Version = $release.tag_name.TrimStart("v")

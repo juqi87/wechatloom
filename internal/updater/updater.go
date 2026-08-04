@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	DefaultManifestURL = "https://github.com/wechatloom/wechatloom/releases/latest/download/update-manifest.json"
+	DefaultManifestURL = "https://github.com/juqi87/wechatloom/releases/latest/download/update-manifest.json"
 	maximumManifest    = 1 << 20
 	maximumBinary      = 128 << 20
 )
@@ -249,7 +249,7 @@ func validateReleaseSource(value *url.URL) error {
 		return errors.New("UPDATE_SOURCE_UNTRUSTED: GitHub Releases is the only trusted update source")
 	}
 	host := strings.ToLower(value.Hostname())
-	if host == "github.com" && strings.HasPrefix(filepath.ToSlash(value.Path), "/wechatloom/wechatloom/releases/") {
+	if host == "github.com" && strings.HasPrefix(filepath.ToSlash(value.Path), "/juqi87/wechatloom/releases/") {
 		return nil
 	}
 	return errors.New("UPDATE_SOURCE_UNTRUSTED: GitHub Releases is the only trusted update source")

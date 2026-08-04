@@ -13,10 +13,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.24.x"
           cache: true
@@ -24,11 +24,13 @@ jobs:
         run: go test -race ./...
       - name: Install Syft for release SBOMs
         uses: anchore/sbom-action/download-syft@v0
+      - name: Install Cosign for keyless checksum signing
+        uses: sigstore/cosign-installer@v4.1.2
       - name: Release signed-checksum artifacts
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
-          version: latest
+          version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
