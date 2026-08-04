@@ -79,6 +79,9 @@ func TestCapabilitiesJSONDescribesTheStableCLIContract(t *testing.T) {
 	if !contains(data.Commands, "build") {
 		t.Errorf("commands = %v, want build capability", data.Commands)
 	}
+	if !contains(data.Commands, "draft") {
+		t.Errorf("commands = %v, want draft capability", data.Commands)
+	}
 	if data.Tool.Name != "wechatloom" || data.Tool.Version == "" {
 		t.Errorf("tool = %+v, want a named CLI version", data.Tool)
 	}
@@ -89,8 +92,137 @@ func TestCapabilitiesJSONDescribesTheStableCLIContract(t *testing.T) {
 		!hasNamedComponent(data.Components, "hero") {
 		t.Errorf("components = %+v, want 24 versioned components", data.Components)
 	}
-	if data.RemoteWrites.WeChatDraft == nil || *data.RemoteWrites.WeChatDraft {
-		t.Errorf("wechat_draft remote write = %v, want explicit false in v0.1", data.RemoteWrites.WeChatDraft)
+	if data.RemoteWrites.WeChatDraft == nil || !*data.RemoteWrites.WeChatDraft {
+		t.Errorf("wechat_draft remote write = %v, want explicit true with confirmed draft support", data.RemoteWrites.WeChatDraft)
+	}
+}
+
+func TestDoctorChecksLocalWorkspaceWithoutRemoteAccess(t *testing.T) {
+	projectRoot := t.TempDir()
+	if _, err := workspace.NewLocal().Init(context.Background(), projectRoot); err != nil {
+		t.Fatalf("init workspace: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	exitCode := cli.NewRunner(&stdout, &stderr).Run([]string{"doctor", "--root", projectRoot, "--json"})
+	if exitCode != 0 {
+		t.Fatalf("doctor exit = %d; stdout=%s stderr=%s", exitCode, stdout.String(), stderr.String())
+	}
+	var response struct {
+		Code string `json:"code"`
+		Data struct {
+			Ready       bool `json:"ready"`
+			RemoteCalls bool `json:"remote_calls"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		t.Fatalf("decode doctor: %v", err)
+	}
+	if response.Code != "DOCTOR_READY" || !response.Data.Ready || response.Data.RemoteCalls {
+		t.Errorf("doctor response = %+v", response)
+	}
+}
+
+func TestCleanRequiresConfirmationAndPreservesPublishingState(t *testing.T) {
+	projectRoot := t.TempDir()
+	resolved, err := workspace.NewLocal().Init(context.Background(), projectRoot)
+	if err != nil {
+		t.Fatalf("init workspace: %v", err)
+	}
+	buildArtifact := filepath.Join(resolved.BuildsPath, "build-1", "article.html")
+	if err := os.MkdirAll(filepath.Dir(buildArtifact), 0o755); err != nil {
+		t.Fatalf("create build: %v", err)
+	}
+	if err := os.WriteFile(buildArtifact, []byte("built"), 0o644); err != nil {
+		t.Fatalf("write build: %v", err)
+	}
+	stateMarker := filepath.Join(resolved.StatePath, "drafts", "state.json")
+	if err := os.MkdirAll(filepath.Dir(stateMarker), 0o700); err != nil {
+		t.Fatalf("create state: %v", err)
+	}
+	if err := os.WriteFile(stateMarker, []byte("state"), 0o600); err != nil {
+		t.Fatalf("write state: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if exitCode := cli.NewRunner(&stdout, &stderr).Run([]string{"clean", "--root", projectRoot, "--json"}); exitCode != 2 {
+		t.Fatalf("unconfirmed clean exit = %d, want 2", exitCode)
+	}
+	if _, err := os.Stat(buildArtifact); err != nil {
+		t.Fatalf("unconfirmed clean removed build: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if exitCode := cli.NewRunner(&stdout, &stderr).Run([]string{"clean", "--root", projectRoot, "--confirm", "--json"}); exitCode != 0 {
+		t.Fatalf("confirmed clean exit = %d; stdout=%s stderr=%s", exitCode, stdout.String(), stderr.String())
+	}
+	if _, err := os.Stat(buildArtifact); !os.IsNotExist(err) {
+		t.Fatalf("confirmed clean left build artifact: %v", err)
+	}
+	if _, err := os.Stat(stateMarker); err != nil {
+		t.Fatalf("clean removed publishing state: %v", err)
+	}
+}
+
+func TestPlanWritesAValidatedLayoutPlanWithoutRemoteEffects(t *testing.T) {
+	projectRoot := t.TempDir()
+	if _, err := workspace.NewLocal().Init(context.Background(), projectRoot); err != nil {
+		t.Fatalf("init workspace: %v", err)
+	}
+	sourcePath := filepath.Join(projectRoot, "article.md")
+	if err := os.WriteFile(sourcePath, []byte("# Planned\n\n:::wx-callout\ntitle: Note\ncontent: Body\n:::\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	exitCode := cli.NewRunner(&stdout, &stderr).Run([]string{"plan", sourcePath, "--root", projectRoot, "--json"})
+	if exitCode != 0 {
+		t.Fatalf("plan exit = %d; stdout=%s stderr=%s", exitCode, stdout.String(), stderr.String())
+	}
+	var response struct {
+		Code string `json:"code"`
+		Data struct {
+			LayoutPlanPath string `json:"layout_plan_path"`
+			BuildPath      string `json:"build_path"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		t.Fatalf("decode plan: %v", err)
+	}
+	if response.Code != "PLAN_COMPLETED" || response.Data.LayoutPlanPath == "" || response.Data.BuildPath == "" {
+		t.Errorf("plan response = %+v", response)
+	}
+	if _, err := os.Stat(response.Data.LayoutPlanPath); err != nil {
+		t.Fatalf("layout plan missing: %v", err)
+	}
+}
+
+func TestRenderReturnsWeChatHTMLAsAnExplicitLocalArtifact(t *testing.T) {
+	projectRoot := t.TempDir()
+	if _, err := workspace.NewLocal().Init(context.Background(), projectRoot); err != nil {
+		t.Fatalf("init workspace: %v", err)
+	}
+	sourcePath := filepath.Join(projectRoot, "article.md")
+	if err := os.WriteFile(sourcePath, []byte("# Rendered\n\nBody.\n"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	exitCode := cli.NewRunner(&stdout, &stderr).Run([]string{"render", sourcePath, "--root", projectRoot, "--json"})
+	if exitCode != 0 {
+		t.Fatalf("render exit = %d; stdout=%s stderr=%s", exitCode, stdout.String(), stderr.String())
+	}
+	var response struct {
+		Code string `json:"code"`
+		Data struct {
+			ArticleHTMLPath string `json:"article_html_path"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
+		t.Fatalf("decode render: %v", err)
+	}
+	if response.Code != "RENDER_COMPLETED" || response.Data.ArticleHTMLPath == "" {
+		t.Errorf("render response = %+v", response)
+	}
+	if _, err := os.Stat(response.Data.ArticleHTMLPath); err != nil {
+		t.Fatalf("rendered HTML missing: %v", err)
 	}
 }
 

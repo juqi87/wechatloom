@@ -1,6 +1,6 @@
 ---
 name: wechatloom
-description: Orchestrate the local WeChatLoom CLI to turn Markdown into themed, deterministic WeChat Official Account HTML with component layout, safe remote and local images, formulas, Mermaid diagrams, interactive mobile preview, and PNG snapshots. Use when the user asks to convert or format a .md file for 微信公众号/WeChat Official Accounts, choose a WeChat theme, arrange an article with reusable components, inspect publishing readiness, preview mobile layouts, or prepare for a future WeChat draft; report that the current v0.3 development CLI has no WeChat remote-write command.
+description: Orchestrate the local WeChatLoom CLI to turn Markdown into themed, deterministic WeChat Official Account HTML, verify an account, and create or update a WeChat draft through an explicit dry-run and confirmation gate. Use for 微信公众号 formatting, preview, readiness, account verification, and confirmed draft requests.
 ---
 
 # WeChatLoom
@@ -41,16 +41,27 @@ Use complete `:::wx-<name>` blocks and follow the discovered schema. Display for
 8. Offer `wechatloom preview <build_path>` for the read-only loopback preview. This command stays active until interrupted and opens the system browser unless `--no-open` is used.
 9. Use `wechatloom snapshot <build_path> --json` when the user requests PNG review at 320, 375, and 430 px. A missing local Chrome/Chromium/Edge blocks snapshots only.
 
+## Draft workflow
+
+1. Run `wechatloom capabilities --json` and require `remote_writes.wechat_draft=true`.
+2. Require a completed local build, a completed `preview` or `snapshot` receipt, and a cover image.
+3. Run `wechatloom draft <build_path> --root <project-root> --account <name> --config <user-config> --cover <cover> --dry-run --json`.
+4. Show the operation, masked target account, content hash, expiry, and warnings. Never treat the returned confirmation token as consent by itself.
+5. Ask for explicit confirmation immediately before the remote write.
+6. Only after confirmation, run `wechatloom draft --plan <plan_path> --confirm <confirmation_token> --config <user-config> --json`.
+7. Report success only for `DRAFT_SUBMITTED` with `outcome=confirmed`. For `DRAFT_OUTCOME_UNKNOWN`, run only the read-only `draft status`, tell the user to inspect the WeChat draft list, and use `draft reconcile ... --confirm` only after the user explicitly reports the observed result.
+
 Parse stdout only as the JSON envelope. Treat stderr as diagnostics, never as protocol data.
 
 ## Safety gates
 
 - Never claim that an article was published or saved to WeChat unless the installed CLI reports a confirmed remote result.
-- The current `0.3.x` development implementation can materialize safe public remote Markdown images into local build artifacts, but still has no WeChat remote-write command.
+- The current `0.3.x` implementation supports WeChat draft writes only through the persisted dry-run plan and short-lived confirmation token described above.
 - Never infer remote consent from consent to inspect, build, render, or preview.
-- When draft support becomes available, require an explicit confirmation immediately before the command that writes remotely.
+- Run `account verify [account] --config <user-config> --json` only when the user explicitly asks to verify an account or to diagnose its readiness. It may contact the official WeChat token endpoint, but must never expose the AppSecret, complete AppID, or access token.
+- Require explicit confirmation immediately before every command that writes remotely; never reuse confirmation from an earlier conversation turn after the plan expires or content changes.
 - Never store app secrets, access tokens, article bodies, or personal contact data in project configuration or protocol logs.
-- Do not introduce network access unless the source actually contains a public HTTP/HTTPS image. Remote image handling must remain behind the CLI's SSRF, MIME, size, pixel, redirect, and timeout checks.
+- Other than an explicitly requested read-only `account verify`, do not introduce network access unless the source actually contains a public HTTP/HTTPS image. Remote image handling must remain behind the CLI's SSRF, MIME, size, pixel, redirect, and timeout checks.
 
 ## Configuration
 

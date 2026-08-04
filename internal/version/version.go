@@ -1,6 +1,7 @@
 package version
 
 const (
-	Name    = "wechatloom"
-	Version = "0.3.0-dev"
+	Name = "wechatloom"
 )
+
+var Version = "0.3.0-dev"

@@ -200,7 +200,7 @@ func (builtin *Builtin) Capabilities(ctx context.Context) (Capabilities, error) 
 		Themes:     themes,
 		Components: components,
 		RemoteWrites: RemoteWrites{
-			WeChatDraft: false,
+			WeChatDraft: true,
 		},
 	}, nil
 }

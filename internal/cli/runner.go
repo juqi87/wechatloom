@@ -20,19 +20,26 @@ import (
 	"github.com/wechatloom/wechatloom/internal/catalog"
 	"github.com/wechatloom/wechatloom/internal/preview"
 	"github.com/wechatloom/wechatloom/internal/protocol"
+	"github.com/wechatloom/wechatloom/internal/publisher"
 	"github.com/wechatloom/wechatloom/internal/skillmanager"
 	"github.com/wechatloom/wechatloom/internal/snapshot"
+	"github.com/wechatloom/wechatloom/internal/updater"
 	"github.com/wechatloom/wechatloom/internal/version"
 	"github.com/wechatloom/wechatloom/internal/workspace"
 )
 
 type Runner struct {
-	stdout io.Writer
-	stderr io.Writer
+	stdout    io.Writer
+	stderr    io.Writer
+	publisher *publisher.Service
 }
 
 func NewRunner(stdout, stderr io.Writer) *Runner {
-	return &Runner{stdout: stdout, stderr: stderr}
+	return &Runner{stdout: stdout, stderr: stderr, publisher: publisher.NewOfficial()}
+}
+
+func NewRunnerWithPublisher(stdout, stderr io.Writer, draftPublisher *publisher.Service) *Runner {
+	return &Runner{stdout: stdout, stderr: stderr, publisher: draftPublisher}
 }
 
 func (runner *Runner) Run(args []string) int {
@@ -56,10 +63,24 @@ func (runner *Runner) Run(args []string) int {
 			return runner.snapshot(args[1:])
 		case "skill":
 			return runner.skill(args[1:])
+		case "account":
+			return runner.account(args[1:])
+		case "draft":
+			return runner.draft(args[1:])
+		case "doctor":
+			return runner.doctor(args[1:])
+		case "clean":
+			return runner.clean(args[1:])
+		case "plan":
+			return runner.plan(args[1:])
+		case "render":
+			return runner.render(args[1:])
+		case "update":
+			return runner.update(args[1:])
 		}
 	}
 
-	fmt.Fprintln(runner.stderr, "usage: wechatloom <init|inspect|build|preview|snapshot|theme|component|skill|capabilities> [options]")
+	fmt.Fprintln(runner.stderr, "usage: wechatloom <init|inspect|plan|build|render|preview|snapshot|theme|component|skill|account|draft|doctor|clean|update|capabilities> [options]")
 	return 2
 }
 
@@ -78,7 +99,7 @@ func (runner *Runner) capabilities(asJSON bool) int {
 		Components   []catalog.Component  `json:"components"`
 		RemoteWrites catalog.RemoteWrites `json:"remote_writes"`
 	}{
-		Commands:     []string{"init", "inspect", "build", "preview", "snapshot", "theme", "component", "skill", "capabilities"},
+		Commands:     []string{"init", "inspect", "plan", "build", "render", "preview", "snapshot", "theme", "component", "skill", "account", "draft", "doctor", "clean", "update", "capabilities"},
 		Themes:       resourceCapabilities.Themes,
 		Components:   resourceCapabilities.Components,
 		RemoteWrites: resourceCapabilities.RemoteWrites,
@@ -97,7 +118,505 @@ func (runner *Runner) capabilities(asJSON bool) int {
 		return 0
 	}
 
-	fmt.Fprintln(runner.stdout, "WeChatLoom commands: init, inspect, build, preview, snapshot, theme, component, skill, capabilities")
+	fmt.Fprintln(runner.stdout, "WeChatLoom commands: init, inspect, plan, build, render, preview, snapshot, theme, component, skill, account, draft, doctor, clean, update, capabilities")
+	return 0
+}
+
+func (runner *Runner) update(args []string) int {
+	asJSON := slices.Contains(args, "--json")
+	if len(args) == 0 || (args[0] != "check" && args[0] != "install") {
+		return runner.usageError(asJSON, "update requires check or an explicitly confirmed install")
+	}
+	action := args[0]
+	manifestURL := ""
+	outputPath := ""
+	confirmed := false
+	for index := 1; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--confirm":
+			confirmed = true
+		case "--manifest-url":
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, "--manifest-url requires a URL")
+			}
+			manifestURL = args[index]
+		case "--output":
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, "--output requires an executable path")
+			}
+			outputPath = args[index]
+		default:
+			return runner.usageError(asJSON, "update accepts only --manifest-url, --output, --confirm, and --json")
+		}
+	}
+	if action == "check" && (confirmed || outputPath != "") {
+		return runner.usageError(asJSON, "update check does not accept --confirm or --output")
+	}
+	if action == "install" && !confirmed {
+		return runner.usageError(asJSON, "update install requires explicit --confirm")
+	}
+	result, err := updater.New().Check(context.Background(), manifestURL, version.Version)
+	if err != nil {
+		return runner.commandError(asJSON, "UPDATE_CHECK_FAILED", "Check for updates", err)
+	}
+	if action == "install" {
+		if outputPath == "" {
+			outputPath, err = os.Executable()
+			if err != nil {
+				return runner.commandError(asJSON, "UPDATE_INSTALL_FAILED", "Resolve current executable", err)
+			}
+		}
+		installed, err := updater.New().Install(context.Background(), result, outputPath)
+		if err != nil {
+			return runner.commandError(asJSON, "UPDATE_INSTALL_FAILED", "Install verified update", err)
+		}
+		if asJSON {
+			_ = protocol.WriteJSON(runner.stdout, protocol.OK("UPDATE_INSTALLED", "Verified update was atomically installed", "completed", installed))
+			return 0
+		}
+		fmt.Fprintf(runner.stdout, "Installed WeChatLoom %s at %s\n", installed.Version, installed.Path)
+		return 0
+	}
+	if asJSON {
+		_ = protocol.WriteJSON(runner.stdout, protocol.OK("UPDATE_CHECKED", "Explicit update check completed", "completed", result))
+		return 0
+	}
+	if result.Available {
+		fmt.Fprintf(runner.stdout, "Update available: %s (current %s)\n", result.LatestVersion, result.CurrentVersion)
+	} else {
+		fmt.Fprintf(runner.stdout, "Already current: %s\n", result.CurrentVersion)
+	}
+	return 0
+}
+
+func (runner *Runner) render(args []string) int {
+	asJSON := slices.Contains(args, "--json")
+	sourcePath := ""
+	root := ""
+	theme := ""
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--root", "--theme":
+			flag := args[index]
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, flag+" requires a value")
+			}
+			if flag == "--root" {
+				root = args[index]
+			} else {
+				theme = args[index]
+			}
+		default:
+			if strings.HasPrefix(args[index], "-") || sourcePath != "" {
+				return runner.usageError(asJSON, "render requires exactly one Markdown file")
+			}
+			sourcePath = args[index]
+		}
+	}
+	if sourcePath == "" {
+		return runner.usageError(asJSON, "render requires exactly one Markdown file")
+	}
+	if root == "" {
+		current, err := os.Getwd()
+		if err != nil {
+			return runner.commandError(asJSON, "WORKSPACE_ERROR", "Resolve project directory", err)
+		}
+		root = current
+	}
+	result, err := builder.New().Build(context.Background(), builder.BuildRequest{WorkspaceRoot: root, SourcePath: sourcePath, Theme: theme})
+	if err != nil {
+		return runner.commandError(asJSON, "RENDER_FAILED", "Render WeChat HTML", err)
+	}
+	if asJSON {
+		_ = protocol.WriteJSON(runner.stdout, protocol.OK("RENDER_COMPLETED", "WeChat HTML was rendered locally", "completed", result))
+		return 0
+	}
+	fmt.Fprintf(runner.stdout, "Rendered article: %s\n", result.ArticleHTMLPath)
+	return 0
+}
+
+func (runner *Runner) plan(args []string) int {
+	asJSON := slices.Contains(args, "--json")
+	sourcePath := ""
+	root := ""
+	theme := ""
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--root", "--theme":
+			flag := args[index]
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, flag+" requires a value")
+			}
+			if flag == "--root" {
+				root = args[index]
+			} else {
+				theme = args[index]
+			}
+		default:
+			if strings.HasPrefix(args[index], "-") || sourcePath != "" {
+				return runner.usageError(asJSON, "plan requires exactly one Markdown file")
+			}
+			sourcePath = args[index]
+		}
+	}
+	if sourcePath == "" {
+		return runner.usageError(asJSON, "plan requires exactly one Markdown file")
+	}
+	if root == "" {
+		current, err := os.Getwd()
+		if err != nil {
+			return runner.commandError(asJSON, "WORKSPACE_ERROR", "Resolve project directory", err)
+		}
+		root = current
+	}
+	result, err := builder.New().Build(context.Background(), builder.BuildRequest{WorkspaceRoot: root, SourcePath: sourcePath, Theme: theme})
+	if err != nil {
+		return runner.commandError(asJSON, "PLAN_FAILED", "Create layout plan", err)
+	}
+	data := struct {
+		BuildPath      string `json:"build_path"`
+		LayoutPlanPath string `json:"layout_plan_path"`
+		ContentHash    string `json:"content_hash"`
+	}{BuildPath: result.BuildPath, LayoutPlanPath: filepath.Join(result.BuildPath, "layout-plan.json"), ContentHash: result.ContentHash}
+	if asJSON {
+		_ = protocol.WriteJSON(runner.stdout, protocol.OK("PLAN_COMPLETED", "Validated layout plan was written", "completed", data))
+		return 0
+	}
+	fmt.Fprintf(runner.stdout, "Layout plan: %s\n", data.LayoutPlanPath)
+	return 0
+}
+
+func (runner *Runner) clean(args []string) int {
+	asJSON := slices.Contains(args, "--json")
+	root := ""
+	confirmed := false
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--confirm":
+			confirmed = true
+		case "--root":
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, "--root requires a project directory")
+			}
+			root = args[index]
+		default:
+			return runner.usageError(asJSON, "clean accepts only --root, --confirm, and --json")
+		}
+	}
+	if !confirmed {
+		return runner.usageError(asJSON, "clean requires explicit --confirm; publishing state is preserved")
+	}
+	if root == "" {
+		current, err := os.Getwd()
+		if err != nil {
+			return runner.commandError(asJSON, "WORKSPACE_ERROR", "Resolve project directory", err)
+		}
+		root = current
+	}
+	result, err := workspace.NewLocal().CleanBuilds(context.Background(), root)
+	if err != nil {
+		return runner.commandError(asJSON, "CLEAN_FAILED", "Clean build artifacts", err)
+	}
+	if asJSON {
+		_ = protocol.WriteJSON(runner.stdout, protocol.OK("CLEAN_COMPLETED", "Build artifacts were removed; publishing state was preserved", "completed", result))
+		return 0
+	}
+	fmt.Fprintf(runner.stdout, "Removed %d build artifact(s) from %s\n", result.Removed, result.Path)
+	return 0
+}
+
+func (runner *Runner) doctor(args []string) int {
+	asJSON := slices.Contains(args, "--json")
+	root := ""
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--root":
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, "--root requires a project directory")
+			}
+			root = args[index]
+		default:
+			return runner.usageError(asJSON, "doctor accepts only --root and --json")
+		}
+	}
+	if root == "" {
+		current, err := os.Getwd()
+		if err != nil {
+			return runner.commandError(asJSON, "WORKSPACE_ERROR", "Resolve project directory", err)
+		}
+		root = current
+	}
+	resolved, err := workspace.NewLocal().Resolve(context.Background(), root)
+	if err != nil {
+		return runner.commandError(asJSON, "DOCTOR_FAILED", "Local workspace check failed", err)
+	}
+	browserAvailable := true
+	if _, err := snapshot.Discover(); err != nil {
+		browserAvailable = false
+	}
+	data := struct {
+		Ready            bool   `json:"ready"`
+		RemoteCalls      bool   `json:"remote_calls"`
+		WorkspaceRoot    string `json:"workspace_root"`
+		ConfigPath       string `json:"config_path"`
+		BrowserAvailable bool   `json:"browser_available"`
+	}{Ready: true, RemoteCalls: false, WorkspaceRoot: resolved.Root, ConfigPath: resolved.ConfigPath, BrowserAvailable: browserAvailable}
+	if asJSON {
+		_ = protocol.WriteJSON(runner.stdout, protocol.OK("DOCTOR_READY", "Local workspace is ready", "ready", data))
+		return 0
+	}
+	fmt.Fprintf(runner.stdout, "Workspace ready: %s\n", resolved.Root)
+	return 0
+}
+
+func (runner *Runner) draft(args []string) int {
+	if len(args) != 0 && args[0] == "status" {
+		return runner.draftStatus(args[1:])
+	}
+	if len(args) != 0 && args[0] == "reconcile" {
+		return runner.draftReconcile(args[1:])
+	}
+	asJSON := slices.Contains(args, "--json")
+	buildPath := ""
+	root := ""
+	configPath := ""
+	account := ""
+	coverPath := ""
+	planPath := ""
+	confirmation := ""
+	dryRun := false
+	newDraft := false
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--dry-run":
+			dryRun = true
+		case "--new-draft":
+			newDraft = true
+		case "--root", "--config", "--account", "--cover", "--plan", "--confirm":
+			flag := args[index]
+			index++
+			if index >= len(args) || (flag != "--confirm" && strings.HasPrefix(args[index], "-")) {
+				return runner.usageError(asJSON, flag+" requires a value")
+			}
+			switch flag {
+			case "--root":
+				root = args[index]
+			case "--config":
+				configPath = args[index]
+			case "--account":
+				account = args[index]
+			case "--cover":
+				coverPath = args[index]
+			case "--plan":
+				planPath = args[index]
+			case "--confirm":
+				confirmation = args[index]
+			}
+		default:
+			if strings.HasPrefix(args[index], "-") || buildPath != "" {
+				return runner.usageError(asJSON, "draft --dry-run requires exactly one committed build path")
+			}
+			buildPath = args[index]
+		}
+	}
+	if dryRun && confirmation != "" {
+		return runner.usageError(asJSON, "draft --dry-run and --confirm are mutually exclusive")
+	}
+	if confirmation != "" {
+		if planPath == "" || buildPath != "" {
+			return runner.usageError(asJSON, "draft --confirm requires --plan and no build path")
+		}
+		result, err := runner.publisher.Submit(context.Background(), publisher.ConfirmedDraftRequest{
+			PlanPath: planPath, ConfirmationToken: confirmation, ConfigPath: configPath,
+		})
+		if err != nil {
+			if result.Outcome == "outcome_unknown" && asJSON {
+				_ = protocol.WriteJSON(runner.stdout, protocol.Failure(
+					"DRAFT_OUTCOME_UNKNOWN",
+					"Draft write outcome is unknown; inspect the WeChat draft list before reconciling",
+					"outcome_unknown", false, result,
+				))
+				return 1
+			}
+			return runner.commandError(asJSON, "DRAFT_SUBMIT_FAILED", "Submit confirmed draft", err)
+		}
+		if asJSON {
+			if err := protocol.WriteJSON(runner.stdout, protocol.OK("DRAFT_SUBMITTED", "Confirmed draft was submitted", "completed", result)); err != nil {
+				fmt.Fprintf(runner.stderr, "write JSON: %v\n", err)
+				return 1
+			}
+			return 0
+		}
+		fmt.Fprintf(runner.stdout, "Draft %s: %s (%s)\n", result.Operation, result.MediaID, result.Outcome)
+		return 0
+	}
+	if !dryRun || buildPath == "" {
+		return runner.usageError(asJSON, "draft requires an explicit --dry-run or --confirm")
+	}
+	if root == "" {
+		current, err := os.Getwd()
+		if err != nil {
+			return runner.commandError(asJSON, "WORKSPACE_ERROR", "Resolve project directory", err)
+		}
+		root = current
+	}
+	if info, err := os.Stat(buildPath); err != nil || !info.IsDir() {
+		previewedBuild, findErr := builder.FindPreviewedBuild(context.Background(), root, buildPath)
+		if findErr != nil {
+			return runner.commandError(asJSON, "DRAFT_PREVIEW_REQUIRED", "Find a previewed build for source", findErr)
+		}
+		buildPath = previewedBuild
+	}
+	plan, err := runner.publisher.Plan(context.Background(), publisher.DraftPlanRequest{
+		WorkspaceRoot: root, BuildPath: buildPath, ConfigPath: configPath,
+		Account: account, CoverPath: coverPath, NewDraft: newDraft,
+	})
+	if err != nil {
+		return runner.commandError(asJSON, "DRAFT_PLAN_FAILED", "Create draft dry-run plan", err)
+	}
+	if asJSON {
+		if err := protocol.WriteJSON(runner.stdout, protocol.OK("DRAFT_PLAN_READY", "Draft dry-run plan is ready for explicit confirmation", "planned", plan)); err != nil {
+			fmt.Fprintf(runner.stderr, "write JSON: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	fmt.Fprintf(runner.stdout, "Draft plan %s: %s on account %s; confirm before %s\n", plan.ID, plan.Operation, plan.Account, plan.ExpiresAt.Format(time.RFC3339))
+	return 0
+}
+
+func (runner *Runner) draftStatus(args []string) int {
+	asJSON := slices.Contains(args, "--json")
+	root := ""
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--root":
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, "--root requires a project directory")
+			}
+			root = args[index]
+		default:
+			return runner.usageError(asJSON, "draft status accepts only --root and --json")
+		}
+	}
+	if root == "" {
+		current, err := os.Getwd()
+		if err != nil {
+			return runner.commandError(asJSON, "WORKSPACE_ERROR", "Resolve project directory", err)
+		}
+		root = current
+	}
+	statuses, err := runner.publisher.ListDraftStates(context.Background(), root)
+	if err != nil {
+		return runner.commandError(asJSON, "DRAFT_STATUS_FAILED", "Read draft status", err)
+	}
+	if asJSON {
+		_ = protocol.WriteJSON(runner.stdout, protocol.OK("DRAFT_STATUS_READY", "Local draft states are ready", "ready", statuses))
+		return 0
+	}
+	for _, status := range statuses {
+		fmt.Fprintf(runner.stdout, "%s\t%s\t%s\n", status.Outcome, status.Account, status.SourcePath)
+	}
+	return 0
+}
+
+func (runner *Runner) draftReconcile(args []string) int {
+	asJSON := slices.Contains(args, "--json")
+	planPath := ""
+	result := ""
+	mediaID := ""
+	confirmed := false
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--confirm":
+			confirmed = true
+		case "--plan", "--result", "--media-id":
+			flag := args[index]
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, flag+" requires a value")
+			}
+			switch flag {
+			case "--plan":
+				planPath = args[index]
+			case "--result":
+				result = args[index]
+			case "--media-id":
+				mediaID = args[index]
+			}
+		default:
+			return runner.usageError(asJSON, "draft reconcile requires --plan, --result, and --confirm")
+		}
+	}
+	if !confirmed || planPath == "" || result == "" {
+		return runner.usageError(asJSON, "draft reconcile requires --plan, --result, and explicit --confirm")
+	}
+	status, err := runner.publisher.Reconcile(context.Background(), publisher.ReconcileRequest{PlanPath: planPath, Result: result, MediaID: mediaID})
+	if err != nil {
+		return runner.commandError(asJSON, "DRAFT_RECONCILE_FAILED", "Reconcile local draft state", err)
+	}
+	if asJSON {
+		_ = protocol.WriteJSON(runner.stdout, protocol.OK("DRAFT_RECONCILED", "Local draft state was reconciled after manual WeChat inspection", "completed", status))
+		return 0
+	}
+	fmt.Fprintf(runner.stdout, "Draft state reconciled: %s\n", status.Outcome)
+	return 0
+}
+
+func (runner *Runner) account(args []string) int {
+	asJSON := slices.Contains(args, "--json")
+	filtered := make([]string, 0, len(args))
+	configPath := ""
+	for index := 0; index < len(args); index++ {
+		switch args[index] {
+		case "--json":
+		case "--config":
+			index++
+			if index >= len(args) || strings.HasPrefix(args[index], "-") {
+				return runner.usageError(asJSON, "--config requires a file")
+			}
+			configPath = args[index]
+		default:
+			filtered = append(filtered, args[index])
+		}
+	}
+	if len(filtered) < 1 || len(filtered) > 2 || filtered[0] != "verify" {
+		return runner.usageError(asJSON, "account requires 'verify [account]'")
+	}
+	accountName := ""
+	if len(filtered) == 2 {
+		accountName = filtered[1]
+	}
+	readiness, err := runner.publisher.VerifyAccount(context.Background(), publisher.VerifyAccountRequest{
+		ConfigPath: configPath,
+		Account:    accountName,
+	})
+	if err != nil {
+		return runner.commandError(asJSON, "ACCOUNT_VERIFY_FAILED", "Verify WeChat account", err)
+	}
+	if asJSON {
+		if err := protocol.WriteJSON(runner.stdout, protocol.OK("ACCOUNT_VERIFIED", "WeChat account verified", "ready", readiness)); err != nil {
+			fmt.Fprintf(runner.stderr, "write JSON: %v\n", err)
+			return 1
+		}
+		return 0
+	}
+	fmt.Fprintf(runner.stdout, "WeChat account %s is ready (%s)\n", readiness.Account, readiness.MaskedAppID)
 	return 0
 }
 
@@ -244,6 +763,9 @@ func (runner *Runner) preview(args []string) int {
 		}
 	}
 	<-ctx.Done()
+	if err := builder.MarkPreviewed(buildPath); err != nil {
+		return runner.commandError(asJSON, "PREVIEW_RECEIPT_FAILED", "Record completed preview", err)
+	}
 	return 0
 }
 
@@ -296,6 +818,9 @@ func (runner *Runner) snapshot(args []string) int {
 	})
 	if err != nil {
 		return runner.commandError(asJSON, "SNAPSHOT_FAILED", "Create PNG snapshots", err)
+	}
+	if err := builder.MarkPreviewed(buildPath); err != nil {
+		return runner.commandError(asJSON, "PREVIEW_RECEIPT_FAILED", "Record completed snapshot preview", err)
 	}
 	if asJSON {
 		if err := protocol.WriteJSON(runner.stdout, protocol.OK("SNAPSHOTS_CREATED", "Mobile snapshots created", "completed", result)); err != nil {

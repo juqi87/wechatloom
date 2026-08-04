@@ -41,3 +41,37 @@ build:
 		t.Errorf("build theme = %q, want %q", resolved.Config.Build.Theme, "minimal")
 	}
 }
+
+func TestSupersededLockOwnerCannotRemoveAReplacementLock(t *testing.T) {
+	projectDir := t.TempDir()
+	local := workspace.NewLocal()
+	resolved, err := local.Init(context.Background(), projectDir)
+	if err != nil {
+		t.Fatalf("init workspace: %v", err)
+	}
+	release, err := local.LockArticle(context.Background(), projectDir, "article")
+	if err != nil {
+		t.Fatalf("acquire article lock: %v", err)
+	}
+	locks, err := filepath.Glob(filepath.Join(resolved.StatePath, "locks", "*.lock"))
+	if err != nil || len(locks) != 1 {
+		t.Fatalf("active locks = %v, err=%v", locks, err)
+	}
+	retired := locks[0] + ".retired"
+	if err := os.Rename(locks[0], retired); err != nil {
+		t.Fatalf("retire original lock: %v", err)
+	}
+	if err := os.Mkdir(locks[0], 0o700); err != nil {
+		t.Fatalf("create replacement lock: %v", err)
+	}
+	release()
+	if _, err := os.Stat(locks[0]); err != nil {
+		t.Fatalf("original owner removed replacement during acquisition: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(locks[0], "owner-replacement"), []byte("replacement\n"), 0o600); err != nil {
+		t.Fatalf("write replacement owner: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(locks[0], "owner-replacement")); err != nil {
+		t.Fatalf("original owner removed replacement lock: %v", err)
+	}
+}

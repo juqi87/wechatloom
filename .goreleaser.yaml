@@ -1,0 +1,53 @@
+version: 2
+
+project_name: wechatloom
+
+builds:
+  - id: wechatloom
+    main: ./cmd/wechatloom
+    binary: wechatloom
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/wechatloom/wechatloom/internal/version.Version={{ .Version }}
+
+archives:
+  - id: standalone-binaries
+    ids:
+      - wechatloom
+    formats:
+      - binary
+    name_template: >-
+      wechatloom_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: SHA256SUMS
+  algorithm: sha256
+
+sboms:
+  - artifacts: binary
+
+release:
+  prerelease: auto
+  extra_files:
+    - glob: ./LICENSE
+    - glob: ./THIRD_PARTY_LICENSES.md
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

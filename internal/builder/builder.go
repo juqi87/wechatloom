@@ -34,6 +34,8 @@ type Inspection struct {
 	Title          string       `json:"title"`
 	Author         string       `json:"author"`
 	Digest         string       `json:"digest,omitempty"`
+	Cover          string       `json:"cover,omitempty"`
+	SourceURL      string       `json:"source_url,omitempty"`
 	Theme          string       `json:"theme"`
 	ComponentCount int          `json:"component_count"`
 	CalloutCount   int          `json:"callout_count"`
@@ -108,6 +110,8 @@ func (service *Service) Inspect(ctx context.Context, request InspectRequest) (In
 		Title:      metadata.Title,
 		Author:     metadata.Author,
 		Digest:     metadata.Digest,
+		Cover:      metadata.Cover,
+		SourceURL:  metadata.SourceURL,
 		Theme:      metadata.Theme,
 		Errors:     []Diagnostic{},
 	}
@@ -380,10 +384,12 @@ func normalizeMarkdownSource(source []byte) []byte {
 }
 
 type frontmatter struct {
-	Title  string `yaml:"title"`
-	Author string `yaml:"author"`
-	Digest string `yaml:"digest"`
-	Theme  string `yaml:"theme"`
+	Title     string `yaml:"title"`
+	Author    string `yaml:"author"`
+	Digest    string `yaml:"digest"`
+	Theme     string `yaml:"theme"`
+	Cover     string `yaml:"cover"`
+	SourceURL string `yaml:"source_url"`
 }
 
 func parseFrontmatter(source []byte) (frontmatter, []byte, error) {

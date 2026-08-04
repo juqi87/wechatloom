@@ -148,7 +148,7 @@ func (project *ProjectCatalog) Capabilities(ctx context.Context) (Capabilities, 
 	if err != nil {
 		return Capabilities{}, err
 	}
-	result := Capabilities{RemoteWrites: RemoteWrites{WeChatDraft: false}}
+	result := Capabilities{RemoteWrites: RemoteWrites{WeChatDraft: true}}
 	for _, resource := range themes.Resources {
 		result.Themes = append(result.Themes, Theme{Name: resource.Name, Version: resource.Version})
 	}

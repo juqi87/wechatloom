@@ -3,12 +3,17 @@ package workspace
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -58,6 +63,11 @@ type BuildRecord struct {
 type CommittedBuild struct {
 	ID   string `json:"id"`
 	Path string `json:"path"`
+}
+
+type CleanResult struct {
+	Removed int    `json:"removed"`
+	Path    string `json:"path"`
 }
 
 type Workspace interface {
@@ -217,6 +227,110 @@ func (local *Local) CommitBuild(
 	}
 	removeStaging = false
 	return CommittedBuild{ID: build.ID, Path: finalPath}, nil
+}
+
+func (local *Local) CleanBuilds(ctx context.Context, root string) (CleanResult, error) {
+	if err := ctx.Err(); err != nil {
+		return CleanResult{}, err
+	}
+	resolved, err := local.Resolve(ctx, root)
+	if err != nil {
+		return CleanResult{}, err
+	}
+	entries, err := os.ReadDir(resolved.BuildsPath)
+	if err != nil {
+		return CleanResult{}, fmt.Errorf("read builds directory: %w", err)
+	}
+	removed := 0
+	for _, entry := range entries {
+		target := filepath.Join(resolved.BuildsPath, entry.Name())
+		if filepath.Dir(target) != resolved.BuildsPath {
+			return CleanResult{}, errors.New("refusing to clean a path outside the builds directory")
+		}
+		if err := os.RemoveAll(target); err != nil {
+			return CleanResult{}, fmt.Errorf("remove build artifact %q: %w", entry.Name(), err)
+		}
+		removed++
+	}
+	return CleanResult{Removed: removed, Path: resolved.BuildsPath}, nil
+}
+
+func (local *Local) LockArticle(ctx context.Context, root, identity string) (func(), error) {
+	if strings.TrimSpace(identity) == "" {
+		return nil, errors.New("article lock identity is required")
+	}
+	resolved, err := local.Resolve(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	lockRoot := filepath.Join(resolved.StatePath, "locks")
+	if err := os.MkdirAll(lockRoot, 0o700); err != nil {
+		return nil, fmt.Errorf("create lock directory: %w", err)
+	}
+	sum := sha256.Sum256([]byte(identity))
+	lockPath := filepath.Join(lockRoot, hex.EncodeToString(sum[:16])+".lock")
+	ownerBytes := make([]byte, 16)
+	if _, err := rand.Read(ownerBytes); err != nil {
+		return nil, fmt.Errorf("create article lock owner: %w", err)
+	}
+	ownerName := "owner-" + hex.EncodeToString(ownerBytes)
+	ownerPath := filepath.Join(lockPath, ownerName)
+	waitContext := ctx
+	cancel := func() {}
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		waitContext, cancel = context.WithTimeout(ctx, 30*time.Second)
+	}
+	defer cancel()
+	for {
+		if err := os.Mkdir(lockPath, 0o700); err == nil {
+			if err := os.WriteFile(ownerPath, []byte(ownerName+"\n"), 0o600); err != nil {
+				_ = os.Remove(lockPath)
+				return nil, fmt.Errorf("record article lock owner: %w", err)
+			}
+			heartbeatDone := make(chan struct{})
+			go func() {
+				ticker := time.NewTicker(time.Minute)
+				defer ticker.Stop()
+				for {
+					select {
+					case now := <-ticker.C:
+						if _, err := os.Stat(ownerPath); err != nil {
+							return
+						}
+						_ = os.Chtimes(lockPath, now, now)
+					case <-heartbeatDone:
+						return
+					}
+				}
+			}()
+			var releaseOnce sync.Once
+			return func() {
+				releaseOnce.Do(func() {
+					close(heartbeatDone)
+					if err := os.Remove(ownerPath); err == nil {
+						_ = os.Remove(lockPath)
+					}
+				})
+			}, nil
+		} else if !errors.Is(err, os.ErrExist) {
+			return nil, fmt.Errorf("acquire article lock: %w", err)
+		}
+		if info, err := os.Stat(lockPath); err == nil && time.Since(info.ModTime()) > 15*time.Minute {
+			stalePath := lockPath + ".stale-" + ownerName
+			if err := os.Rename(lockPath, stalePath); err == nil {
+				_ = os.RemoveAll(stalePath)
+				continue
+			}
+			if _, err := os.Stat(lockPath); errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+		}
+		select {
+		case <-waitContext.Done():
+			return nil, errors.New("ARTICLE_LOCK_TIMEOUT: another draft operation is still active")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
 }
 
 func safeBuildPath(root, relative string) (string, error) {

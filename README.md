@@ -2,7 +2,7 @@
 
 WeChatLoom is a local Go CLI plus a portable Codex Skill for turning Markdown into deterministic, mobile-first HTML for WeChat Official Accounts.
 
-The current `0.3.0-dev` line includes the complete v0.2 local visual workflow and the first v0.3 media slice: remote Markdown images are materialized as content-addressed build assets with DNS/IP SSRF checks, redirect revalidation, MIME, size, pixel, and timeout limits. It does not connect to WeChat or create a draft yet.
+The current `0.3.0-dev` line includes the complete v0.2 local visual workflow and the v0.3 draft pipeline: safe remote image materialization, named-account verification, private token and media caches, explicit draft dry-runs, expiring confirmation tokens, draft add/update, duplicate prevention, and recoverable `outcome_unknown` state.
 
 ## Quick start
 
@@ -15,6 +15,25 @@ go build -o wechatloom ./cmd/wechatloom
 ./wechatloom theme list --json
 ./wechatloom inspect article.md --json
 ./wechatloom build article.md --root . --theme tech-cyan --json
+```
+
+## Install and update
+
+Release tags build checksum-protected standalone binaries for macOS and Linux (`arm64`/`amd64`) and Windows (`amd64`). The repository includes explicit installers:
+
+```bash
+./scripts/install.sh
+```
+
+```powershell
+.\scripts\install.ps1
+```
+
+The CLI never checks for updates during ordinary commands. Both network access and replacement are explicit:
+
+```bash
+wechatloom update check --json
+wechatloom update install --confirm --json
 ```
 
 The build response returns a build directory under `.wechatloom/builds/`. Open the interactive preview or create 2× PNG screenshots at 320, 375, and 430 px:
@@ -92,6 +111,52 @@ build:
 
 Theme priority is CLI `--theme`, then article frontmatter, then project configuration. Never place WeChat credentials or access tokens in project configuration.
 
+### Account verification and confirmed drafts
+
+Store credentials only in a user-level file outside the project, restrict it to the current user, and select the file explicitly when needed:
+
+```yaml
+schema_version: "1"
+wechat:
+  default_account: personal
+  accounts:
+    personal:
+      app_id: wx...
+      app_secret: ...
+```
+
+```bash
+chmod 600 /path/to/wechatloom-config.yaml
+wechatloom account verify personal --config /path/to/wechatloom-config.yaml --json
+```
+
+Without `--config`, WeChatLoom uses `wechatloom/config.yaml` under the operating system's user configuration directory. Verification makes one read-only request to the official access-token endpoint and returns only a masked AppID and token lifetime. `WECHAT_IP_NOT_ALLOWED` means the machine's public IP must be added to the WeChat Official Account API allowlist.
+
+Draft creation and update always use two separate commands. The first command performs a local dry-run and returns a short-lived confirmation token and persisted plan. Only the second command may upload media or write a draft:
+
+```bash
+wechatloom preview .wechatloom/builds/<build-id>
+# or complete: wechatloom snapshot .wechatloom/builds/<build-id> --json
+
+wechatloom draft .wechatloom/builds/<build-id> \
+  --root . --account personal --config /path/to/wechatloom-config.yaml \
+  --cover ./cover.png --dry-run --json
+
+wechatloom draft --plan .wechatloom/state/plans/<plan-id>.json \
+  --confirm <confirmation-token> --config /path/to/wechatloom-config.yaml --json
+```
+
+The publisher rechecks the build, source, cover, account, content hash, plan expiry, and duplicate state immediately before submission. Write requests are never automatically retried. A connection loss during draft add/update is persisted as `outcome_unknown`; inspect the WeChat draft list before reconciling or retrying.
+
+```bash
+wechatloom draft status --root . --json
+wechatloom draft reconcile --plan .wechatloom/state/plans/<plan-id>.json \
+  --result confirmed --media-id <observed-media-id> --confirm --json
+# or, only after confirming no draft exists:
+wechatloom draft reconcile --plan .wechatloom/state/plans/<plan-id>.json \
+  --result absent --confirm --json
+```
+
 Each atomic build contains `article.html`, `preview.html`, `layout-plan.json`, `manifest.json`, diagnostics, derived Markdown, content-addressed assets, and a snapshots directory. The source Markdown remains unchanged. The manifest records hashes, tool and protocol versions, resolved theme tokens, component schema versions, rendering policy, and every artifact.
 
 ## JSON protocol contract
@@ -110,7 +175,7 @@ wechatloom skill update codex --json
 
 `status` is read-only. `install` and `update` write only after the explicit command, record the CLI source version and bundled file hashes, and use staging plus rollback directories for recoverable replacement. Set `CODEX_HOME` or pass `--codex-home <dir>` to target a non-default Codex home.
 
-The Skill discovers runtime themes and components, recommends a restrained layout, keeps the source read-only by default, and reports that the current v0.3 development CLI still cannot create a WeChat draft.
+The Skill discovers runtime themes, components, and remote-write capabilities; keeps the source read-only by default; creates a dry-run plan first; and requires a fresh explicit confirmation immediately before a WeChat draft write.
 
 ## Validation
 
